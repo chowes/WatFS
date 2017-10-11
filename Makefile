@@ -1,6 +1,6 @@
 CXX = g++
 CPPFLAGS += `pkg-config --cflags protobuf grpc fuse3`
-CXXFLAGS += -std=c++11 -I.
+CXXFLAGS += -std=c++11 -I. -g
 LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ fuse3`
 
 PROTOC = protoc

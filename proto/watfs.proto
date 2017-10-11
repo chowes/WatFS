@@ -5,10 +5,9 @@ package watfs;
 service WatFS {
     // basically just works like a ping, no work is done
     rpc WatFSNull (WatFSStatus) returns (WatFSStatus) {}
-    // lookup a file, gets a file handle
-    // rpc WatFSLookup (WatFSLookupArgs) returns (stream WatFSFile) {}
-    // create a file
-    // rpc WatFSCreate (WatFSCreateArgs) returns (WatFSFileHandle) {}
+
+    // get object attributes
+    rpc WatFSGetAttr (WatFSGetAttrArgs) returns (WatFSGetAttrRet) {}
 }
 
 
@@ -16,16 +15,12 @@ message WatFSStatus {
     int32 status = 1;
 }
 
-message WatFSFile {
-    // file attributes, cast to struct stat
-    bytes attr = 1;
-    // variable amount of data
-    bytes data = 2;
+message WatFSGetAttrArgs {
+    string file_path = 1;
 }
 
-message WatFSFileHandle {
-    // file attributes, cast to struct stat
-    bytes attr = 1;
-    // file handle
-    int32 file_fd = 2;
+message WatFSGetAttrRet {
+    // cast to struct stat *
+    int32 err = 1;
+    bytes attr = 2;
 }
