@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+watfs_client
+watfs_server
+

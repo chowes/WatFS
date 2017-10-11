@@ -7,6 +7,9 @@
 #include <fcntl.h>
 #include <stddef.h>
 #include <assert.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 
 static struct fuse_operations watfs_oper;
@@ -19,7 +22,6 @@ static struct fuse_operations watfs_oper;
  * -h, --help
  */
 static struct options {
-    const char *mount_point;
     int show_help;
 } options;
 
@@ -41,37 +43,24 @@ static void show_help(const char *progname)
 }
 
 
-static void *watfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
-{
-    (void) conn;
-
-    // turn off kernel caching, we want to flush file contents on open 
-    cfg->kernel_cache = 0;
-
-    return NULL;
-}
-
-
 // TODO: implement this properly, needs to have the same behaviour as stat
-static int watfs_getattr(const char *path, struct stat *stbuf, 
+static int watfs_getattr(const char *path, struct stat *stat_buf, 
                          struct fuse_file_info *fi)
 {
     (void) fi;
-    int res = 0;
+    int err;
 
-    memset(stbuf, 0, sizeof(struct stat));
-    if (strcmp(path, "/") == 0) {
-        stbuf->st_mode = S_IFDIR | 0755;
-        stbuf->st_nlink = 2;
+    err = stat(path, stat_buf);
+    stat_buf->st_uid = getuid();
+    stat_buf->st_gid = getgid();
 
-    } else if (strcmp(path, "test") == 0) {
-        stbuf->st_mode = S_IFREG | 0444;
-        stbuf->st_nlink = 1;
-        stbuf->st_size = 10;
-    } else
-        res = -ENOENT;
+    return err;
+}
 
-    return res;
+
+static int readdir(const char* path, void* buf, fuse_fill_dir_t filler,
+                   off_t offset, struct fuse_file_info* fi) {
+
 }
 
 
@@ -81,7 +70,6 @@ static int watfs_getattr(const char *path, struct stat *stbuf,
  */
 void set_operations(struct fuse_operations *ops)
 {
-    ops->init        = watfs_init;
     ops->getattr     = watfs_getattr;
 }
 
@@ -89,9 +77,6 @@ void set_operations(struct fuse_operations *ops)
 int main(int argc, char *argv[])
 {
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
-
-    /* set defaults */
-    options.mount_point = strdup(".");
 
     /* Parse options */
     if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1)
