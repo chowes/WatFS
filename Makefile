@@ -1,10 +1,38 @@
-all: watfs_client watfs_server
+CXX = g++
+CPPFLAGS += `pkg-config --cflags protobuf grpc fuse3`
+CXXFLAGS += -std=c++11
+LDFLAGS += -L/usr/local/lib `pkg-config --libs protobuf grpc++ fuse3`
 
-watfs_client: src/watfs_client.cc
-	g++ -Wall src/watfs_client.cc `pkg-config fuse3 --cflags --libs` -o watfs_client
+PROTOC = protoc
+GRPC_CPP_PLUGIN = grpc_cpp_plugin
+GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`
 
-watfs_server: src/watfs_server.cc
-	g++ -Wall src/watfs_server.cc `pkg-config fuse3 --cflags --libs` -o watfs_server
+PROTOS_PATH = proto
+SRC_PATH = src
+INCLUDE_PATH = include
+
+
+vpath %.proto $(PROTOS_PATH)
+vpath %.cc $(SRC_PATH)
+vpath %.h $(INCLUDE_PATH)
+
+
+all: watfs_client watfs_server watfs_grpc_server
+
+watfs_client: watfs_client.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+watfs_server: watfs_server.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+watfs_grpc_server: watfs_grpc_server.o
+	$(CXX) $^ $(LDFLAGS) -o $@
+
+%.grpc.pb.cc: %.proto
+	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<
+
+%.pb.cc: %.proto
+	$(PROTOC) -I $(PROTOS_PATH) --cpp_out=. $<
 
 clean:
-	rm -f *.o watfs_client watfs_server
+	rm -f *.o *.pb.cc *.pb.h watfs_client watfs_server watfs_grpc_server
