@@ -35,12 +35,12 @@
 
 static void watfs_fullpath(char fpath[PATH_MAX], const char *path)
 {
-    strcpy(fpath, WAT_DATA->rootdir);
+    strcpy(fpath, WATFS_DATA->rootdir);
     strncat(fpath, path, PATH_MAX); // ridiculously long paths will
 				    // break here
 
     log_msg("    watfs_fullpath:  rootdir = \"%s\", path = \"%s\", fpath = \"%s\"\n",
-	    WAT_DATA->rootdir, path, fpath);
+	    WATFS_DATA->rootdir, path, fpath);
 }
 
 ///////////////////////////////////////////////////////////
@@ -691,7 +691,7 @@ void *watfs_init(struct fuse_conn_info *conn)
     log_conn(conn);
     log_fuse_context(fuse_get_context());
     
-    return WAT_DATA;
+    return WATFS_DATA;
 }
 
 /**
