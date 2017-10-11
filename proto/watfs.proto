@@ -3,16 +3,12 @@ syntax = "proto3";
 package watfs;
 
 service WatFS {
-    rpc watFSNull ()
-}
-
-service WatFS {
     // basically just works like a ping, no work is done
     rpc WatFSNull (WatFSStatus) returns (WatFSStatus) {}
     // lookup a file, gets a file handle
-    rpc WatFSLookup (WatFSLookupArgs) returns (stream WatFSFile) {}
+    // rpc WatFSLookup (WatFSLookupArgs) returns (stream WatFSFile) {}
     // create a file
-    rpc WatFSCreate (WatFSCreateArgs) returns (WatFSFileHandle) {}
+    // rpc WatFSCreate (WatFSCreateArgs) returns (WatFSFileHandle) {}
 }
 
 
