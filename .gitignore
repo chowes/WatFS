@@ -33,4 +33,6 @@
 
 watfs_client
 watfs_server
+watfs_grpc_client
+watfs_grpc_server
 
