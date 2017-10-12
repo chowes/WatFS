@@ -8,18 +8,15 @@ service WatFS {
 
     // get object attributes
     rpc WatFSGetAttr (WatFSGetAttrArgs) returns (WatFSGetAttrRet) {}
+
+    // lookup an object and return a file handle
+    rpc WatFSLookup (WatFSLookupArgs) returns (WatFSLookupRet) {}
+
+    
 }
 
 
-/*
- * This is our basic file handle type. Right now I'm thinking that full (server)
- * file path is sufficient to uniquely identify any file on the server (assuming 
- * we're just storing files in the normal file system). This should be opaque
- * to the client as in NFS.
- */
-message WatFSFH {
-    string file_handle = 1;
-}
+/* NULL */
 
 /*
  * Right now just used to implement the NULL call, not sure if this will have
@@ -28,6 +25,8 @@ message WatFSFH {
 message WatFSStatus {
     int32 status = 1;
 }
+
+/* GETATTR */ 
 
 /*
  * All we need to send is the file path
@@ -45,4 +44,27 @@ message WatFSGetAttrRet {
     // cast to struct stat *
     int32 err = 1;
     bytes attr = 2;
+}
+
+/* LOOKUP */ 
+
+/*
+ * Client sends the file handle of the containing directory, and the file 
+ * handle as a string
+ */
+message WatFSLookupArgs {
+    string dir_handle = 1;
+    string file_name = 2;
+}
+
+/*
+ * Server replies with a file handle for the requested object (can be either
+ * a file or a directory), the attributes of the requested object, and the
+ * attributes of the containing folder
+ */
+message WatFSLookupRet {
+    string file_handle = 1;
+    bytes file_attr = 2;
+    bytes dir_attr = 3;
+    int32 err = 4;
 }
