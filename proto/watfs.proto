@@ -11,14 +11,36 @@ service WatFS {
 }
 
 
+/*
+ * This is our basic file handle type. Right now I'm thinking that full (server)
+ * file path is sufficient to uniquely identify any file on the server (assuming 
+ * we're just storing files in the normal file system). This should be opaque
+ * to the client as in NFS.
+ */
+message WatFSFH {
+    string file_handle = 1;
+}
+
+/*
+ * Right now just used to implement the NULL call, not sure if this will have
+ * any practical use. I only bothered to implement it as a starting point.
+ */
 message WatFSStatus {
     int32 status = 1;
 }
 
+/*
+ * All we need to send is the file path
+ */
 message WatFSGetAttrArgs {
     string file_path = 1;
 }
 
+/*
+ * Server sends back the results of a call to stat in attr, and sets err to the
+ * value of errno if there is an error. This field will be 0 in the non-error
+ * case. 
+ */
 message WatFSGetAttrRet {
     // cast to struct stat *
     int32 err = 1;
