@@ -33,6 +33,8 @@ using watfs::WatFSGetAttrArgs;
 using watfs::WatFSGetAttrRet;
 using watfs::WatFSLookupArgs;
 using watfs::WatFSLookupRet;
+using watfs::WatFSReadArgs;
+using watfs::WatFSReadRet;
 
 
 using namespace std;
@@ -187,6 +189,69 @@ public:
 
         
         ret->set_err(0);
+
+        return Status::OK;
+    }
+
+
+    /*
+     * The server read from the file given by the WatFS file handle and fills in
+     * a struct stat buffer with information on whatever file is indicated by
+     * the provided file handle. In addition, a boolean indicating the end of 
+     * file, and the number of bytes read are sent back to the client.
+     *
+     * In addition, we set an error code so the client can interpret errors
+     */
+    Status WatFSRead(ServerContext *context, const WatFSReadArgs *args,
+                        WatFSReadRet *ret) override {
+        
+        struct stat attr;
+        int count;
+        bool eof;
+
+        string marshalled_attr;
+        string marshalled_data;
+
+        int err;
+
+        auto file = file_handle_map.find(args->file_handle());
+        if (file == file_handle_map.end()) {
+            // not open for reading
+            cout << args->file_handle() << endl;
+            ret->set_err(EBADF);
+            return Status::OK;
+        }
+        
+        memset(&attr, 0, sizeof attr);
+        err = stat(args->file_handle().c_str(), &attr);
+        
+        marshalled_attr.assign((const char*)&attr, sizeof attr);
+        ret->set_file_attr(marshalled_attr);
+
+
+        char *data = new char[args->count()];
+
+        // read count bytes from file start at offset
+        file->second.clear();
+        file->second.seekg(args->offset(), file->second.beg);
+
+        file->second.read(data, args->count());
+        count = file->second.gcount();
+        eof = file->second.eof();
+        if (file->second.bad()) {
+            err = errno;
+        }
+
+        marshalled_data.assign(data, count);
+        ret->set_data(marshalled_data);
+
+        if (err == -1) {
+            // we want to set err so FUSE can throw informative errors
+            ret->set_err(errno);
+        } else {
+            // no error, set err to 0
+            ret->set_err(err);
+        }
 
         return Status::OK;
     }

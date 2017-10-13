@@ -20,6 +20,8 @@ using watfs::WatFSGetAttrArgs;
 using watfs::WatFSGetAttrRet;
 using watfs::WatFSLookupArgs;
 using watfs::WatFSLookupRet;
+using watfs::WatFSReadArgs;
+using watfs::WatFSReadRet;
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -66,12 +68,9 @@ public:
      *
      * fills in the given struct stat with values for relevant file
      * 
-     * returns 0 on success, or -1 if the gRPC call failes. If the return value
-     * is greater than 0, it indicates the errno indicated on the server. this
-     * should be set in the FUSE implementation to give meaningful errors to 
-     * the user.
+     * returns 0 on success, or -1 if the gRPC call fails. errno is set on error
      */
-    int WatFSGetAttr(const char *filename, struct stat *statbuf) {
+    int WatFSGetAttr(string filename, struct stat *statbuf) {
         ClientContext context;
         WatFSGetAttrArgs getattr_args;
         WatFSGetAttrRet getattr_ret;
@@ -85,10 +84,6 @@ public:
                                             &getattr_ret);
 
         if (!status.ok()) {
-            /* 
-             * something went wrong, we should probably differentiate this from
-             * file system errors somehow...
-             */
             cerr << "WatFSGetAttr: rpc failed." << endl;
             return -1;
         }
@@ -97,9 +92,15 @@ public:
         memset(statbuf, 0, sizeof(struct stat));
         memcpy(statbuf, marshalled_attr.data(), sizeof(struct stat));
         
-        // return the errno (or hopefully 0)
-        // we could set errno here, but better to do it in FUSE
-        return getattr_ret.err();
+
+        // on error we set errno and return -1
+        if (getattr_ret.err() != 0) {
+            errno = getattr_ret.err();
+            return -1;
+        } else {
+            return 0;
+        }
+        
     }
 
 
@@ -111,12 +112,9 @@ public:
      * a struct stat with file attributes, and another struct stat with
      * attributes for the containing directory 
      * 
-     * returns 0 on success, or -1 if the gRPC call failes. If the return value
-     * is greater than 0, it indicates the errno indicated on the server. this
-     * should be set in the FUSE implementation to give meaningful errors to 
-     * the user.
+     * returns 0 on success, or -1 on failure, errno is set on error.
      */
-    int WatFSLookup(const char *dir, const char *file, string &file_handle,
+    int WatFSLookup(const string &dir, const string &file, string &file_handle,
                     struct stat *file_stat, struct stat *dir_stat) {
 
         ClientContext context;
@@ -134,10 +132,6 @@ public:
         Status status = stub_->WatFSLookup(&context, lookup_args, &lookup_ret);
 
         if (!status.ok()) {
-            /* 
-             * something went wrong, we should probably differentiate this from
-             * file system errors somehow...
-             */
             cerr << "WatFSLookup: rpc failed." << endl;
             return -1;
         }
@@ -156,9 +150,71 @@ public:
         memset(file_stat, 0, sizeof(struct stat));
         memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
 
-        // return the errno (or hopefully 0)
-        // we could set errno here, but better to do it in FUSE
-        return lookup_ret.err();
+        // on error we set errno and return -1
+        if (lookup_ret.err() != 0) {
+            errno = lookup_ret.err();
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+
+    /*
+     * read from a file stored on the server. 
+     *
+     * Given a WatFS file handle (string containing server file path), we read
+     * requested number of bytes from the file on the server into the given
+     * buffer. Given boolean eof is set to indicate eof, and a struct stat is
+     * populated with the attributes of the read file. 
+     * 
+     * returns number of bytes read into the buffer on success, or -1 on error.
+     * errno is set on error.
+     */
+    int WatFSRead(const string &file_handle, int offset, int count, bool &eof,
+                  struct stat *file_stat, void *data) {
+
+        ClientContext context;
+        WatFSReadArgs read_args;
+        WatFSReadRet read_ret;
+
+        string marshalled_file_attr;
+        string marshalled_data;
+
+        read_args.set_file_handle(file_handle);
+        read_args.set_offset(offset);
+        read_args.set_count(count);
+
+        Status status = stub_->WatFSRead(&context, read_args, &read_ret);
+
+        if (!status.ok()) {
+            cerr << "WatFSRead: rpc failed." << endl;
+            return -1;
+        }
+
+        marshalled_file_attr = read_ret.file_attr();
+        marshalled_data = read_ret.data();
+        
+        memset(file_stat, 0, sizeof(struct stat));
+        memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
+     
+        // assume alloc'd correctly in caller
+        memcpy(data, marshalled_data.data(), count);
+
+
+        eof = read_ret.eof();
+
+        if (read_ret.count() == -1) {
+            errno = read_ret.err();
+        }
+
+        // on error we set errno and return -1
+        if (read_ret.err() != 0) {
+            errno = read_ret.err();
+            return -1;
+        } else {
+            return read_ret.count();
+        }
     }
 
 
@@ -178,7 +234,6 @@ int main(int argc, const char *argv[])
                                            grpc::InsecureChannelCredentials()));
 
     if (err = client.WatFSGetAttr(argv[1], &file_attr)) {
-        errno = err;
         perror("Client::WatFSGetAttr");
     } else {
         cout << file_attr.st_size << endl;
@@ -186,10 +241,20 @@ int main(int argc, const char *argv[])
 
 
     if (err = client.WatFSLookup(argv[1], argv[2], path, &file_attr, &dir_attr)) {
-        errno = err;        
         perror("Client::WatFSLookup");
     } else {
         cout << path << endl;
+    }
+
+
+    bool eof;
+    void *data = malloc(4096);
+    path = argv[1];
+    path += argv[2];
+    if (err = client.WatFSRead(path, 0, 4096, eof, &file_attr, data)) {
+        perror("Client::WatFSRead");
+    } else {
+        cout << (char*)data << endl;
     }
 
     return 0;
