@@ -50,18 +50,23 @@ public:
         WatFSStatus client_status;
         WatFSStatus server_status;
 
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+
+
         client_status.set_status(0);
 
         Status status = stub_->WatFSNull(&context, client_status, 
                                          &server_status);
 
         if (!status.ok() || server_status.status() != client_status.status()) {
-            cerr << "WatFSNull: rpc failed." << endl;
+            cerr << status.error_message() << endl;
             return false;
         }
 
         return true;
     }
+
 
     /*
      * get attribute information from the server. 
@@ -77,6 +82,9 @@ public:
 
         string marshalled_attr;
 
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+
 
         getattr_args.set_file_path(filename);
 
@@ -84,7 +92,8 @@ public:
                                             &getattr_ret);
 
         if (!status.ok()) {
-            cerr << "WatFSGetAttr: rpc failed." << endl;
+            errno = ETIMEDOUT;
+            cerr << status.error_message() << endl;
             return -1;
         }
 
@@ -125,6 +134,9 @@ public:
         string marshalled_file_attr;
         string marshalled_dir_attr;
 
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+
 
         lookup_args.set_dir_handle(dir);
         lookup_args.set_file_name(file);
@@ -132,7 +144,8 @@ public:
         Status status = stub_->WatFSLookup(&context, lookup_args, &lookup_ret);
 
         if (!status.ok()) {
-            cerr << "WatFSLookup: rpc failed." << endl;
+            errno = ETIMEDOUT;
+            cerr << status.error_message() << endl;
             return -1;
         }
 
@@ -181,6 +194,10 @@ public:
         string marshalled_file_attr;
         string marshalled_data;
 
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+
+
         read_args.set_file_handle(file_handle);
         read_args.set_offset(offset);
         read_args.set_count(count);
@@ -188,7 +205,8 @@ public:
         Status status = stub_->WatFSRead(&context, read_args, &read_ret);
 
         if (!status.ok()) {
-            cerr << "WatFSRead: rpc failed." << endl;
+            errno = ETIMEDOUT;
+            cerr << status.error_message() << endl;
             return -1;
         }
 
@@ -220,6 +238,15 @@ public:
 
 private:
     unique_ptr<WatFS::Stub> stub_;
+
+    /*
+     * We want to get an absolute deadline for our grpc calls, since we're using
+     * wait_for_ready semantics. I have this set to 10 seconds, maybe we can 
+     * make this configurable?
+     */
+    chrono::system_clock::time_point GetDeadline() {
+        return chrono::system_clock::now() + chrono::seconds(10);
+    }
 };
 
 
@@ -251,7 +278,7 @@ int main(int argc, const char *argv[])
     void *data = malloc(4096);
     path = argv[1];
     path += argv[2];
-    if (err = client.WatFSRead(path, 0, 4096, eof, &file_attr, data)) {
+    if (client.WatFSRead(path, 0, 4096, eof, &file_attr, data) == -1) {
         perror("Client::WatFSRead");
     } else {
         cout << (char*)data << endl;
