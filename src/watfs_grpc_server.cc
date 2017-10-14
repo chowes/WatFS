@@ -20,13 +20,6 @@
 
 #include "watfs.grpc.pb.h"
 
-using grpc::Server;
-using grpc::ServerBuilder;
-using grpc::ServerContext;
-using grpc::ServerReader;
-using grpc::ServerReaderWriter;
-using grpc::ServerWriter;
-using grpc::Status;
 using watfs::WatFS;
 using watfs::WatFSStatus;
 using watfs::WatFSGetAttrArgs;
@@ -35,10 +28,22 @@ using watfs::WatFSLookupArgs;
 using watfs::WatFSLookupRet;
 using watfs::WatFSReadArgs;
 using watfs::WatFSReadRet;
+using watfs::WatFSWriteArgs;
+using watfs::WatFSWriteRet;
+using watfs::WatFSReaddirArgs;
+using watfs::WatFSReaddirRet;
 
+using grpc::Server;
+using grpc::ServerBuilder;
+using grpc::ServerContext;
+using grpc::ServerReader;
+using grpc::ServerWriter;
+using grpc::Status;
 
 using namespace std;
 
+// This is the recommended message size for streams
+#define MESSAGE_SZ          16384
 
 static unordered_map<string, fstream> file_handle_map;
 
@@ -127,7 +132,7 @@ public:
          * since the rest of the return params won't be valid */
         if (err) {
             ret->set_err(errno);
-            perror("stat - directory");
+            perror("stat");
             return Status::OK;
         }
         ret->set_dir_attr(marshalled_dir_attr);
@@ -140,7 +145,7 @@ public:
          * since the rest of the return params won't be valid */
         if (err) {
             ret->set_err(errno);
-            perror("stat - file");
+            perror("stat");
             return Status::OK;
         }
         ret->set_file_attr(marshalled_file_attr);
@@ -177,7 +182,7 @@ public:
             file->second.open(file_path, ios::in | ios::out | ios::binary);
             if (file->second.fail()) {
                 ret->set_err(errno);
-                perror("open - file");
+                perror("open");
                 file_handle_map.erase(file_path);
                 return Status::OK;
             }
@@ -203,7 +208,7 @@ public:
      * In addition, we set an error code so the client can interpret errors
      */
     Status WatFSRead(ServerContext *context, const WatFSReadArgs *args,
-                        WatFSReadRet *ret) override {
+                        ServerWriter<WatFSReadRet> *writer) override {
         
         struct stat attr;
         int count;
@@ -212,23 +217,34 @@ public:
         string marshalled_attr;
         string marshalled_data;
 
+        WatFSReadRet ret;
+
+        int bytes_sent = 0;
         int err;
 
         auto file = file_handle_map.find(args->file_handle());
         if (file == file_handle_map.end()) {
-            // not open for reading
-            cout << args->file_handle() << endl;
-            ret->set_err(EBADF);
+            /* not open for reading, this isn't an error on the server side,
+             * so we won't set errno */
+            ret.set_err(EBADF);
+            writer->Write(ret);
             return Status::OK;
         }
         
         memset(&attr, 0, sizeof attr);
         err = stat(args->file_handle().c_str(), &attr);
-        
+        if (file == file_handle_map.end()) {
+            // not open for reading
+            ret.set_err(errno);
+            perror("stat");
+            writer->Write(ret);
+            return Status::OK;
+        }
+
         marshalled_attr.assign((const char*)&attr, sizeof attr);
-        ret->set_file_attr(marshalled_attr);
+        ret.set_file_attr(marshalled_attr);
 
-
+        // we still want to read data as a big chunk on the server
         char *data = new char[args->count()];
 
         // read count bytes from file start at offset
@@ -239,19 +255,49 @@ public:
         count = file->second.gcount();
         eof = file->second.eof();
         if (file->second.bad()) {
-            err = errno;
+            // not open for reading
+            ret.set_err(errno);
+            perror("read");
+            writer->Write(ret);
+            return Status::OK;
         }
 
-        marshalled_data.assign(data, count);
-        ret->set_data(marshalled_data);
+        // no errors reading the file
+        ret.set_err(0);
 
-        if (err == -1) {
-            // we want to set err so FUSE can throw informative errors
-            ret->set_err(errno);
-        } else {
-            // no error, set err to 0
-            ret->set_err(err);
+        int msg_sz; // the size of the message sent over the stream
+        while (bytes_sent < args->count()) {
+            // we want to send at most MESSAGE_SZ bytes at a time
+            msg_sz = min(MESSAGE_SZ, args->count() - bytes_sent);
+            // send this chunk over the stream
+            
+            marshalled_data.assign(data+bytes_sent, msg_sz);            
+            ret.set_data(marshalled_data);
+            ret.set_count(msg_sz);
+            writer->Write(ret);
+
+            bytes_sent += msg_sz;
         }
+
+        return Status::OK;
+    }
+
+
+    /*
+     * 
+     */
+    Status WatFSWrite(ServerContext *context, const WatFSWriteArgs *args,
+                      WatFSWriteRet *ret) override {
+
+        return Status::OK;
+    }
+
+
+    /*
+     * 
+     */
+    Status WatFSReaddir(ServerContext *context, const WatFSReaddirArgs *args,
+                       WatFSReaddirRet *ret) override {
 
         return Status::OK;
     }

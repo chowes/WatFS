@@ -22,11 +22,15 @@ using watfs::WatFSLookupArgs;
 using watfs::WatFSLookupRet;
 using watfs::WatFSReadArgs;
 using watfs::WatFSReadRet;
+using watfs::WatFSWriteArgs;
+using watfs::WatFSWriteRet;
+using watfs::WatFSReaddirArgs;
+using watfs::WatFSReaddirRet;
+
 
 using grpc::Channel;
 using grpc::ClientContext;
 using grpc::ClientReader;
-using grpc::ClientReaderWriter;
 using grpc::ClientWriter;
 using grpc::Status;
 
@@ -185,14 +189,16 @@ public:
      * errno is set on error.
      */
     int WatFSRead(const string &file_handle, int offset, int count, bool &eof,
-                  struct stat *file_stat, void *data) {
+                  struct stat *file_stat, char *data) {
 
         ClientContext context;
         WatFSReadArgs read_args;
         WatFSReadRet read_ret;
-
+        
         string marshalled_file_attr;
         string marshalled_data;
+
+        int bytes_read = 0;
 
         context.set_wait_for_ready(true);
         context.set_deadline(GetDeadline());
@@ -202,25 +208,42 @@ public:
         read_args.set_offset(offset);
         read_args.set_count(count);
 
-        Status status = stub_->WatFSRead(&context, read_args, &read_ret);
+
+        unique_ptr<ClientReader<WatFSReadRet>> reader(
+            stub_->WatFSRead(&context, read_args));
+        
+
+        // read requested data from stream
+        while (reader->Read(&read_ret) && bytes_read < count) {
+            
+            // fail as soon as we find a problem
+            if (read_ret.count() == -1) {
+                errno = read_ret.err();
+                return -1;
+            }
+
+            marshalled_file_attr = read_ret.file_attr();
+            marshalled_data = read_ret.data();
+            
+            // doing this every time is kind of inefficient
+            memset(file_stat, 0, sizeof(struct stat));
+            memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
+         
+            // assume alloc'd correctly in caller
+            memcpy(data+bytes_read, marshalled_data.data(), read_ret.count());
+
+            eof = read_ret.eof();
+
+            bytes_read += read_ret.count();
+        }
+
+        Status status = reader->Finish();
 
         if (!status.ok()) {
             errno = ETIMEDOUT;
             cerr << status.error_message() << endl;
             return -1;
         }
-
-        marshalled_file_attr = read_ret.file_attr();
-        marshalled_data = read_ret.data();
-        
-        memset(file_stat, 0, sizeof(struct stat));
-        memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
-     
-        // assume alloc'd correctly in caller
-        memcpy(data, marshalled_data.data(), count);
-
-
-        eof = read_ret.eof();
 
         if (read_ret.count() == -1) {
             errno = read_ret.err();
@@ -231,8 +254,24 @@ public:
             errno = read_ret.err();
             return -1;
         } else {
-            return read_ret.count();
+            return bytes_read;
         }
+    }
+
+
+    /*
+     * 
+     */
+    int WatFSWrite() {
+
+    }
+
+
+    /*
+     * 
+     */
+    int WatFSReaddir() {
+
     }
 
 
@@ -275,13 +314,13 @@ int main(int argc, const char *argv[])
 
 
     bool eof;
-    void *data = malloc(4096);
+    char *data = (char*)malloc(100000);
     path = argv[1];
     path += argv[2];
-    if (client.WatFSRead(path, 0, 4096, eof, &file_attr, data) == -1) {
+    if (client.WatFSRead(path, 0, 100000, eof, &file_attr, data) == -1) {
         perror("Client::WatFSRead");
     } else {
-        cout << (char*)data << endl;
+        cout << data << endl;
     }
 
     return 0;

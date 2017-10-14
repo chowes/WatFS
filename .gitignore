@@ -11,7 +11,7 @@
 *.gch
 *.pch
 *.pb.cc
-*.pb.h 
+*.pb.h
 
 # Compiled Dynamic libraries
 *.so
