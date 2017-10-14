@@ -200,8 +200,8 @@ public:
 
 
     /*
-     * The server read from the file given by the WatFS file handle and fills in
-     * a struct stat buffer with information on whatever file is indicated by
+     * The server reads from the file given by the WatFS file handle and fills 
+     * in a struct stat buffer with information on whatever file is indicated by
      * the provided file handle. In addition, a boolean indicating the end of 
      * file, and the number of bytes read are sent back to the client.
      *
@@ -331,7 +331,7 @@ public:
 
             bytes_read += args.count();
         } while (reader->Read(&args));
-        
+
          // always flush the buffer, not the same as sync
         file->second.flush();
         // this shouldn't really fail, but we'll be cautious

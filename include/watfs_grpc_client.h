@@ -113,7 +113,17 @@ public:
 
 
     /*
+     * write to a file stored on the server
+     *
+     * Given a WatFS file handle (string containing server file path), we write
+     * requested number of bytes to the file on the server at the specified 
+     * offset from the given buffer. If commit is set to true, sync is called 
+     * and data is commited to disk. A struct stat is populated with the new 
+     * attributes of the modified file. An error field is sent back to the 
+     * client on error, set to relevant errno. 
      * 
+     * returns number of bytes read into the buffer on success, or -1 on error.
+     * errno is set on error.
      */
     int WatFSWrite(const string &file_handle, int offset, int count, bool flush,
                    struct stat *attr, const char *data);

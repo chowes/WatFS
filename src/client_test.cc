@@ -35,7 +35,7 @@ int main(int argc, const char *argv[])
         // cout << data << endl;
     }
     
-    string write_data = "hello world my name is colin!!!!!!!!!!!";
+    string write_data = "hello world my name is colin!";
     if (client.WatFSWrite(path, 0, write_data.size(), true, &file_attr, write_data.data()) == -1) {
         perror("Client::WatFSWrite");
     }
