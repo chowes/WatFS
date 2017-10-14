@@ -26,13 +26,24 @@ int main(int argc, const char *argv[])
 
 
     bool eof;
-    char *data = (char*)malloc(10000);
+    char *data = (char*)malloc(20000);
     path = argv[1];
     path += argv[2];
-    if (client.WatFSRead(path, 0, 10000, eof, &file_attr, data) == -1) {
+    if (client.WatFSRead(path, 0, 20000, eof, &file_attr, data) == -1) {
         perror("Client::WatFSRead");
     } else {
-        cout << data << endl;
+        // cout << data << endl;
+    }
+    
+    string write_data = "hello world my name is colin!!!!!!!!!!!";
+    if (client.WatFSWrite(path, 0, write_data.size(), true, &file_attr, write_data.data()) == -1) {
+        perror("Client::WatFSWrite");
+    }
+
+    if (client.WatFSRead(path, 0, 20000, eof, &file_attr, data) == -1) {
+        perror("Client::WatFSRead");
+    } else {
+        // cout << data << endl;
     }
 
     return 0;

@@ -98,7 +98,7 @@ message WatFSWriteArgs {
     string file_handle = 1;
     int32 offset = 2;
     int32 count = 3;
-    bool flush = 4;
+    bool commit = 4;
     bytes data = 5;
 }
 

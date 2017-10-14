@@ -287,7 +287,76 @@ public:
      * 
      */
     Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> 
-                      *writer, WatFSWriteRet *ret) override {
+                      *reader, WatFSWriteRet *ret) override {
+
+        WatFSWriteArgs args;
+
+        struct stat attr;
+
+        string marshalled_attr;
+        string marshalled_data;
+
+        // bytes read from the stream
+        int bytes_read = 0;
+        int err;
+
+
+        // we have to do our first read outside of the loop
+        reader->Read(&args);
+
+        auto file = file_handle_map.find(args.file_handle());
+        if (file == file_handle_map.end()) {
+            /* not open for reading, this isn't an error on the server side,
+             * so we won't set errno */
+            ret->set_err(EBADF);
+            return Status::OK;
+        }
+
+        do {
+            marshalled_data = args.data();
+
+            // write to the proper offset
+            file->second.clear();
+            // note: client updates the offset for us on each iteration!
+            file->second.seekp(args.offset());
+            file->second.write(marshalled_data.data(), args.count());
+
+            if (file->second.bad()) {
+                ret->set_commit(false);
+                ret->set_count(-1);
+                ret->set_err(errno);
+                perror("write");
+                return Status::OK;
+            }
+
+            bytes_read += args.count();
+        } while (reader->Read(&args));
+        
+         // always flush the buffer, not the same as sync
+        file->second.flush();
+        // this shouldn't really fail, but we'll be cautious
+        if (file->second.bad()) {
+            ret->set_commit(false);
+            ret->set_count(-1);
+            ret->set_err(errno);
+            perror("flush");
+            return Status::OK;
+        }
+
+        // set the total bytes written to file
+        ret->set_count(bytes_read);
+
+        if (args.commit()) {
+            sync(); // syncs all changes, not just this file
+            ret->set_commit(true);
+        } else {
+            ret->set_commit(false);
+        }
+
+        marshalled_attr.assign((const char*)&attr, sizeof attr);
+        ret->set_file_attr(marshalled_attr);
+
+        ret->set_err(0);
 
         return Status::OK;
     }

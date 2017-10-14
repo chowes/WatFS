@@ -45,6 +45,10 @@ using namespace std;
 #define __WATFS_GRPC_CLIENT__
 
 
+// This is the recommended message size for streams
+#define MESSAGE_SZ          16384
+
+
 class WatFSClient {
 public:
     
@@ -111,7 +115,8 @@ public:
     /*
      * 
      */
-    int WatFSWrite();
+    int WatFSWrite(const string &file_handle, int offset, int count, bool flush,
+                   struct stat *attr, const char *data);
 
 
     /*

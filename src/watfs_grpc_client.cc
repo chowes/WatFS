@@ -181,12 +181,8 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
         return -1;
     }
 
-    if (read_ret.count() == -1) {
-        errno = read_ret.err();
-    }
-
     // on error we set errno and return -1
-    if (read_ret.err() != 0) {
+    if (read_ret.err() != 0 || read_ret.count() == -1) {
         errno = read_ret.err();
         return -1;
     } else {
@@ -195,8 +191,70 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 }
 
 
-int WatFSClient::WatFSWrite() {
+int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
+                            bool flush, struct stat *attr, const char *data) {
+    
+    ClientContext context;
+    WatFSWriteArgs write_args;
+    WatFSWriteRet write_ret;
 
+    string marshalled_data;
+    string marshalled_file_attr;
+
+    int bytes_sent = 0;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    unique_ptr<ClientWriter<WatFSWriteArgs>> writer(
+        stub_->WatFSWrite(&context, &write_ret));
+
+    write_args.set_file_handle(file_handle);
+
+    cerr << write_args.file_handle() << endl;
+
+    write_args.set_commit(flush);
+
+    int msg_sz;
+    while (bytes_sent < count) {
+        msg_sz = min(MESSAGE_SZ, count - bytes_sent);
+        marshalled_data.assign(data+bytes_sent, msg_sz); 
+
+        write_args.set_offset(offset + bytes_sent);
+        write_args.set_count(msg_sz);
+        write_args.set_data(marshalled_data);
+
+        if (!writer->Write(write_args)) {
+            // TODO: does this imply an error? maybe we need to set errno...
+            break;
+        }
+
+        bytes_sent += msg_sz;
+
+        cerr << bytes_sent << endl;
+    }
+
+    writer->WritesDone();
+    Status status = writer->Finish();
+
+    marshalled_file_attr = write_ret.file_attr();
+    // doing this every time is kind of inefficient
+    memset(attr, 0, sizeof(struct stat));
+    memcpy(attr, marshalled_file_attr.data(), sizeof(struct stat));
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -1;
+    }
+
+    // on error we set errno and return -1
+    if (write_ret.err() != 0 || write_ret.count() == -1) {
+        errno = write_ret.err();
+        return -1;
+    } else {
+        return bytes_sent;
+    }
 }
 
 
