@@ -286,8 +286,8 @@ public:
     /*
      * 
      */
-    Status WatFSWrite(ServerContext *context, const WatFSWriteArgs *args,
-                      WatFSWriteRet *ret) override {
+    Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> 
+                      *writer, WatFSWriteRet *ret) override {
 
         return Status::OK;
     }

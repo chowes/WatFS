@@ -15,6 +15,11 @@
 #include "watfs.grpc.pb.h"
 
 using watfs::WatFS;
+
+using watfs::WatFSStatus;
+using watfs::WatFSStatus;
+using watfs::WatFSStatus;
+using watfs::WatFSStatus;
 using watfs::WatFSStatus;
 using watfs::WatFSGetAttrArgs;
 using watfs::WatFSGetAttrRet;
@@ -35,9 +40,24 @@ using grpc::Status;
 
 using namespace std;
 
+
+#ifndef __WATFS_GRPC_CLIENT__
+#define __WATFS_GRPC_CLIENT__
+
+
 class WatFSClient {
 public:
+    
+    /*
+     * Constructor using default deadline
+     */
     WatFSClient(shared_ptr<Channel> channel);
+
+
+    /*
+     * Constructor setting gRPC call deadline in seconds
+     */
+    WatFSClient(shared_ptr<Channel> channel, long deadline);
 
 
     /* 
@@ -100,15 +120,25 @@ public:
     int WatFSReaddir();
 
 
+    /*
+     * 
+     */
+    int WatFSCommit();
+
+
 private:
     unique_ptr<WatFS::Stub> stub_;
 
+    // deadline for gRPC calls in seconds
+    long grpc_deadline;
+
     /*
      * We want to get an absolute deadline for our grpc calls, since we're using
-     * wait_for_ready semantics. I have this set to 10 seconds, maybe we can 
-     * make this configurable?
+     * wait_for_ready semantics.
      */
     chrono::system_clock::time_point GetDeadline() {
-        return chrono::system_clock::now() + chrono::seconds(10);
+        return chrono::system_clock::now() + chrono::seconds(grpc_deadline);
     }
 };
+
+#endif // __WATFS_GRPC_CLIENT__

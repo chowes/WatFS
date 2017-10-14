@@ -5,6 +5,13 @@ WatFSClient::WatFSClient(shared_ptr<Channel> channel) :
     stub_(WatFS::NewStub(channel)) {}
 
 
+WatFSClient::WatFSClient(shared_ptr<Channel> channel, long deadline) : 
+    stub_(WatFS::NewStub(channel)) {
+
+        grpc_deadline = deadline;
+    }
+
+
 bool WatFSClient::WatFSNull() {
     ClientContext context;
     WatFSStatus client_status;
@@ -66,8 +73,9 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
 }
 
 
-int WatFSClient::WatFSLookup(const string &dir, const string &file, string &file_handle,
-                struct stat *file_stat, struct stat *dir_stat) {
+int WatFSClient::WatFSLookup(const string &dir, const string &file, 
+                             string &file_handle,struct stat *file_stat, 
+                             struct stat *dir_stat) {
 
     ClientContext context;
     WatFSLookupArgs lookup_args;
@@ -116,8 +124,8 @@ int WatFSClient::WatFSLookup(const string &dir, const string &file, string &file
 }
 
 
-int WatFSClient::WatFSRead(const string &file_handle, int offset, int count, bool &eof,
-              struct stat *file_stat, char *data) {
+int WatFSClient::WatFSRead(const string &file_handle, int offset, int count, 
+                           bool &eof, struct stat *file_stat, char *data) {
 
     ClientContext context;
     WatFSReadArgs read_args;
@@ -194,42 +202,4 @@ int WatFSClient::WatFSWrite() {
 
 int WatFSClient::WatFSReaddir() {
 
-}
-
-
-int main(int argc, const char *argv[])
-{
-    struct stat file_attr;
-    struct stat dir_attr;
-    string path;
-    int err;
-
-    WatFSClient client(grpc::CreateChannel("localhost:8080", 
-                                           grpc::InsecureChannelCredentials()));
-
-    if (err = client.WatFSGetAttr(argv[1], &file_attr)) {
-        perror("Client::WatFSGetAttr");
-    } else {
-        cout << file_attr.st_size << endl;
-    }
-
-
-    if (err = client.WatFSLookup(argv[1], argv[2], path, &file_attr, &dir_attr)) {
-        perror("Client::WatFSLookup");
-    } else {
-        cout << path << endl;
-    }
-
-
-    bool eof;
-    char *data = (char*)malloc(100000);
-    path = argv[1];
-    path += argv[2];
-    if (client.WatFSRead(path, 0, 100000, eof, &file_attr, data) == -1) {
-        perror("Client::WatFSRead");
-    } else {
-        cout << data << endl;
-    }
-
-    return 0;
 }

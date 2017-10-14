@@ -1,0 +1,39 @@
+#include "watfs_grpc_client.h"
+
+
+int main(int argc, const char *argv[])
+{
+    struct stat file_attr;
+    struct stat dir_attr;
+    string path;
+    int err;
+
+    WatFSClient client(grpc::CreateChannel("localhost:8080", 
+                                           grpc::InsecureChannelCredentials()));
+
+    if (err = client.WatFSGetAttr(argv[1], &file_attr)) {
+        perror("Client::WatFSGetAttr");
+    } else {
+        cout << file_attr.st_size << endl;
+    }
+
+
+    if (err = client.WatFSLookup(argv[1], argv[2], path, &file_attr, &dir_attr)) {
+        perror("Client::WatFSLookup");
+    } else {
+        cout << path << endl;
+    }
+
+
+    bool eof;
+    char *data = (char*)malloc(10000);
+    path = argv[1];
+    path += argv[2];
+    if (client.WatFSRead(path, 0, 10000, eof, &file_attr, data) == -1) {
+        perror("Client::WatFSRead");
+    } else {
+        cout << data << endl;
+    }
+
+    return 0;
+}

@@ -15,9 +15,11 @@ service WatFS {
     // TODO: change this to use a stream
     rpc WatFSRead (WatFSReadArgs) returns (stream WatFSReadRet) {}
 
-    rpc WatFSWrite (WatFSWriteArgs) returns (WatFSWriteRet) {}
+    rpc WatFSWrite (stream WatFSWriteArgs) returns (WatFSWriteRet) {}
 
     rpc WatFSReaddir (WatFSReaddirArgs) returns (WatFSReaddirRet) {}
+
+    rpc WatFSCommit (WatFSCommitArgs) returns (WatFSCommitRet) {}
 }
 
 
@@ -121,4 +123,16 @@ message WatFSReaddirRet {
     bytes data = 2;
     bool eof = 3;
     int32 err = 4;    
+}
+
+
+/* COMMIT */
+
+// these will probably change
+message WatFSCommitArgs {
+    bool commit = 1;
+}
+
+message WatFSCommitRet {
+    bool success = 1; 
 }
