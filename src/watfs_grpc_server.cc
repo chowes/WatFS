@@ -56,8 +56,6 @@ using namespace std;
 // This is the recommended message size for streams
 #define MESSAGE_SZ          16384
 
-static unordered_map<string, fstream> file_handle_map;
-
 
 class WatFSServer final : public WatFS::Service {
 public:
@@ -125,6 +123,7 @@ public:
         string file_path;
         string marshalled_file_attr;
         string marshalled_dir_attr;
+        fstream fh;
 
         struct stat file_stat;
         struct stat dir_stat;
@@ -167,43 +166,16 @@ public:
             return Status::OK;
         }
 
-
-        /* 
-         * now we know the object is a file, so we add it to our mapping of
-         * file paths to file handles, and return the file path to the client.
-         * 
-         * adding fstream objects to maps is kind of tricky. this code creates
-         * a <string, fstream> pair, where the key is the file path and adds 
-         * it to our map. then we pull this pair out of the map, asset that it
-         * exists, and use it to open the file
-         */
-
-        // first check to see if the server has a handle for this file already
-        auto file = file_handle_map.find(file_path);
-        if (file == file_handle_map.end()) {
-
-            /* we don't already have a copy of this file open, so we open it
-             * and add the handle to the file handle map */
-            file_handle_map.insert(make_pair(file_path, fstream{}));
-            auto file = file_handle_map.find(file_path);
-            assert(file != file_handle_map.end());
-            
-
-            // we don't know what we're reading, so assume in/out and binary mode
-            file->second.open(file_path, ios::in | ios::out | ios::binary);
-            if (file->second.fail()) {
-                ret->set_err(errno);
-                perror("open");
-                file_handle_map.erase(file_path);
-                return Status::OK;
-            }
-
-            /* now on subsequent reads/writes, we get our file handle from the
-             * map using the file path the client uses as a handle*/
+        fh.open(file_path, ios::in | ios::out | ios::binary);
+        if (fh.fail()) {
+            ret->set_err(errno);
+            perror("open");
+            fh.close();
+            return Status::OK;
         }
-        ret->set_file_handle(file_path);
-
+        fh.close();
         
+        ret->set_file_handle(file_path);
         ret->set_err(0);
 
         return Status::OK;
@@ -233,18 +205,21 @@ public:
         int bytes_sent = 0;
         int err;
 
-        auto file = file_handle_map.find(args->file_handle());
-        if (file == file_handle_map.end()) {
-            /* not open for reading, this isn't an error on the server side,
-             * so we won't set errno */
-            ret.set_err(EBADF);
+        fstream fh;
+
+        fh.open(args->file_handle(), ios::in | ios::binary);
+        if (fh.fail()) {
+            ret.set_err(errno);
             writer->Write(ret);
+            perror("open");
+            fh.close();
             return Status::OK;
         }
         
+
         memset(&attr, 0, sizeof attr);
         err = stat(args->file_handle().c_str(), &attr);
-        if (file == file_handle_map.end()) {
+        if (err == -1) {
             // not open for reading
             ret.set_err(errno);
             perror("stat");
@@ -259,13 +234,13 @@ public:
         char *data = new char[args->count()];
 
         // read count bytes from file start at offset
-        file->second.clear();
-        file->second.seekg(args->offset(), file->second.beg);
+        fh.clear();
+        fh.seekg(args->offset(), fh.beg);
 
-        file->second.read(data, args->count());
-        count = file->second.gcount();
-        eof = file->second.eof();
-        if (file->second.bad()) {
+        fh.read(data, args->count());
+        count = fh.gcount();
+        eof = fh.eof();
+        if (fh.bad()) {
             // not open for reading
             ret.set_err(errno);
             perror("read");
@@ -290,6 +265,8 @@ public:
             bytes_sent += msg_sz;
         }
 
+        fh.close();
+
         return Status::OK;
     }
 
@@ -311,15 +288,16 @@ public:
         int bytes_read = 0;
         int err;
 
+        fstream fh;
 
         // we have to do our first read outside of the loop
         reader->Read(&args);
 
-        auto file = file_handle_map.find(args.file_handle());
-        if (file == file_handle_map.end()) {
-            /* not open for reading, this isn't an error on the server side,
-             * so we won't set errno */
-            ret->set_err(EBADF);
+        fh.open(args.file_handle(), ios::out | ios::binary);
+        if (fh.fail()) {
+            ret->set_err(errno);
+            perror("open");
+            fh.close();
             return Status::OK;
         }
 
@@ -327,12 +305,12 @@ public:
             marshalled_data = args.data();
 
             // write to the proper offset
-            file->second.clear();
+            fh.clear();
             // note: client updates the offset for us on each iteration!
-            file->second.seekp(args.offset());
-            file->second.write(marshalled_data.data(), args.count());
+            fh.seekp(args.offset());
+            fh.write(marshalled_data.data(), args.count());
 
-            if (file->second.bad()) {
+            if (fh.bad()) {
                 ret->set_commit(false);
                 ret->set_count(-1);
                 ret->set_err(errno);
@@ -344,9 +322,9 @@ public:
         } while (reader->Read(&args));
 
          // always flush the buffer, not the same as sync
-        file->second.flush();
+        fh.flush();
         // this shouldn't really fail, but we'll be cautious
-        if (file->second.bad()) {
+        if (fh.bad()) {
             ret->set_commit(false);
             ret->set_count(-1);
             ret->set_err(errno);
