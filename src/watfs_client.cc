@@ -82,7 +82,7 @@ int watfs_open(const char *path, struct fuse_file_info *f)
 
     res = client.WatFSLookup(path);
 
-    return res;
+    return 0;
 }
 
 
@@ -93,6 +93,18 @@ int watfs_rename(const char* from, const char* to, unsigned int flags)
                        grpc::InsecureChannelCredentials()));
 
     res = client.WatFSRename(from, to);
+    
+    return res;
+}
+
+
+int watfs_mknod(const char *path, mode_t mode, dev_t rdev)
+{
+    int res;
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()));
+
+    res = client.WatFSMknod(path, mode, rdev);
     
     return res;
 }
@@ -161,17 +173,33 @@ int watfs_rmdir(const char* path)
 }
 
 
+int watfs_utimens(const char *path, const struct timespec tv[2], 
+                  struct fuse_file_info *fi)
+{
+    int res;
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()));
+
+    res = client.WatFSUtimens(path, tv[0], tv[1]);
+    
+    return res;
+}
+
+
 void set_fuse_ops(struct fuse_operations *ops) {
     ops->getattr    = watfs_getattr;
     ops->opendir    = watfs_opendir;
     ops->readdir    = watfs_readdir;
+    ops->mknod      = watfs_mknod;
     ops->open       = watfs_open;
+    ops->mknod      = watfs_mknod;
     ops->read       = watfs_read;
     ops->write      = watfs_write;
     ops->rename     = watfs_rename;
     ops->unlink     = watfs_unlink;
     ops->mkdir      = watfs_mkdir;
     ops->rmdir      = watfs_rmdir;
+    ops->utimens    = watfs_utimens;
 }
 
 

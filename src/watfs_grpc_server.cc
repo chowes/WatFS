@@ -34,8 +34,8 @@ using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
 using watfs::WatFSReaddirArgs;
 using watfs::WatFSReaddirRet;
-using watfs::WatFSCreateArgs;
-using watfs::WatFSCreateRet;
+using watfs::WatFSMknodArgs;
+using watfs::WatFSMknodRet;
 using watfs::WatFSUnlinkArgs;
 using watfs::WatFSUnlinkRet;
 using watfs::WatFSRenameArgs;
@@ -44,6 +44,8 @@ using watfs::WatFSMkdirArgs;
 using watfs::WatFSMkdirRet;
 using watfs::WatFSRmdirArgs;
 using watfs::WatFSRmdirRet;
+using watfs::WatFSUtimensArgs;
+using watfs::WatFSUtimensRet;
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -99,8 +101,6 @@ public:
 
         file_path = translate_pathname(args->file_path());
 
-        cerr << "DEBUG: getattr - " << file_path << endl;
-
         memset(&statbuf, 0, sizeof statbuf);
         err = stat(file_path.c_str(), &statbuf);
         marshalled_attr.assign((const char*)&statbuf, sizeof statbuf);
@@ -109,7 +109,6 @@ public:
         if (err == -1) {
             // we want to set err so FUSE can throw informative errors
             attr->set_err(errno);
-            perror("DEBUG: getattr");
         } else {
             // no error, set err to 0
             attr->set_err(err);
@@ -176,8 +175,6 @@ public:
         fstream fh;
 
         path = translate_pathname(args->file_handle());
-
-        cerr << "DEBUG: read - " << path << endl;
 
         fh.open(path, ios::in | ios::binary);
         if (fh.fail()) {
@@ -328,8 +325,6 @@ public:
 
         file_path = translate_pathname(args->file_handle());
 
-        cerr << "DEBUG: readdir - " << file_path << endl;
-
         dh = opendir(file_path.c_str());
         dir_entry = readdir(dh);
         if (dir_entry == NULL) {
@@ -346,7 +341,6 @@ public:
             ret.set_dir_entry(marshalled_dir_entry);
             
             memset(&attr, 0, sizeof attr);
-            cerr << "DEBUG: readdir - found entry: " << dir_entry->d_name << endl;
             stat(dir_entry->d_name, &attr);
             marshalled_attr.assign((const char *)&attr, sizeof attr);
             ret.set_attr(marshalled_attr);
@@ -363,23 +357,34 @@ public:
     /*
      *
      */
-    Status WatFSCreate(ServerContext *context, const WatFSCreateArgs *args,
-                       WatFSCreateRet *ret) override {
+    Status WatFSMknod(ServerContext *context, const WatFSMknodArgs *args,
+                       WatFSMknodRet *ret) override {
 
         string path;
+        mode_t mode;
+        dev_t rdev;
+
+        int err;
 
         path = translate_pathname(args->path());
+        mode = args->mode();
+        rdev = args->rdev();
 
-        int err = creat(path.c_str(), args->mode());
+        if (S_ISFIFO(mode)) {
+            err = mkfifo(path.c_str(), mode);
+        } else {
+            err = mknod(path.c_str(), mode, rdev);
+        }
+
 
         if (err == -1) {
             ret->set_err(errno);
-            perror("creat");
+            cout << "DEBUG: mknod - " << path << endl;
+            perror("mknod");
         } else {
             ret->set_err(0);
         }
 
-        close(err);
         return Status::OK;
     }
 
@@ -399,6 +404,7 @@ public:
         if (err == -1) {
             ret->set_err(errno);
             perror("unlink");
+            cout << "DEBUG: unlink - " << path << endl;
         } else {
             ret->set_err(0);
         }
@@ -419,13 +425,12 @@ public:
         source_path = translate_pathname(args->source());
         dest_path = translate_pathname(args->dest());
 
-        cerr << "DEBUG: rename - " << source_path << " to: " << dest_path << endl;
-
         int err = rename(source_path.c_str(), dest_path.c_str());
 
         if (err == -1) {
             ret->set_err(errno);
             perror("rename");
+            cout << "DEBUG: rename - " << source_path << endl;
         } else {
             ret->set_err(0);
         }
@@ -449,6 +454,7 @@ public:
         if (err == -1) {
             ret->set_err(errno);
             perror("rmdir");
+            cout << "DEBUG: rmdir - " << path << endl;
         } else {
             ret->set_err(0);
         }
@@ -471,7 +477,40 @@ public:
 
         if (err == -1) {
             ret->set_err(errno);
-            perror("unlink");
+            perror("rmdir");            
+            cout << "DEBUG: rmdir - " << path << endl;
+
+        } else {
+            ret->set_err(0);
+        }
+
+        return Status::OK;
+    }
+
+
+    /*
+     *
+     */
+    Status WatFSUtimens(ServerContext *context, const WatFSUtimensArgs *args,
+                       WatFSUtimensRet *ret) override {
+
+        string path;
+        struct timespec ts[2];
+
+        path = translate_pathname(args->path());
+
+        ts[0].tv_sec = args->ts_access_sec();
+        ts[0].tv_nsec = args->ts_access_nsec();
+        ts[1].tv_sec = args->ts_modify_sec();
+        ts[1].tv_nsec = args->ts_modify_nsec();
+
+        // update timestamp, path is relative to current working directory
+        int err = utimensat(AT_FDCWD, path.c_str(), ts, AT_SYMLINK_NOFOLLOW);
+
+        if (err == -1) {
+            ret->set_err(errno);
+            perror("utimensat");
+            cout << "DEBUG: path - " << path << endl;
         } else {
             ret->set_err(0);
         }

@@ -263,15 +263,16 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
 }
 
 
-int WatFSClient::WatFSCreate(const string &path, mode_t mode) {
+int WatFSClient::WatFSMknod(const string &path, mode_t mode, dev_t rdev) {
     ClientContext context;
-    WatFSCreateArgs create_args;
-    WatFSCreateRet create_ret;
+    WatFSMknodArgs mknod_args;
+    WatFSMknodRet mknod_ret;
 
-    create_args.set_path(path);
-    create_args.set_mode(mode);
+    mknod_args.set_path(path);
+    mknod_args.set_mode(mode);
+    mknod_args.set_rdev(rdev);
 
-    Status status = stub_->WatFSCreate(&context, create_args, &create_ret);
+    Status status = stub_->WatFSMknod(&context, mknod_args, &mknod_ret);
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -280,8 +281,8 @@ int WatFSClient::WatFSCreate(const string &path, mode_t mode) {
     }
 
     // on error we set errno and return -errno
-    if (create_ret.err() != 0) {
-        errno = create_ret.err();
+    if (mknod_ret.err() != 0) {
+        errno = mknod_ret.err();
         return -errno;
     } else {
         return 0;
@@ -388,3 +389,33 @@ int WatFSClient::WatFSRmdir(const string &path) {
         return 0;
     }
 }
+
+int WatFSClient::WatFSUtimens(const string &path, struct timespec tv_access, 
+                              struct timespec tv_modify) {
+    ClientContext context;
+    WatFSUtimensArgs utimens_args;
+    WatFSUtimensRet utimens_ret;
+
+    utimens_args.set_path(path);
+    utimens_args.set_ts_access_sec(tv_access.tv_sec);
+    utimens_args.set_ts_access_nsec(tv_access.tv_nsec);
+    utimens_args.set_ts_modify_sec(tv_modify.tv_sec);
+    utimens_args.set_ts_modify_nsec(tv_modify.tv_nsec);
+
+    Status status = stub_->WatFSUtimens(&context, utimens_args, &utimens_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (utimens_ret.err() != 0) {
+        errno = utimens_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
+}
+

@@ -19,7 +19,7 @@ service WatFS {
 
     rpc WatFSReaddir (WatFSReaddirArgs) returns (stream WatFSReaddirRet) {}
 
-    rpc WatFSCreate (WatFSCreateArgs) returns (WatFSCreateRet) {}
+    rpc WatFSMknod (WatFSMknodArgs) returns (WatFSMknodRet) {}
 
     rpc WatFSUnlink (WatFSUnlinkArgs) returns (WatFSUnlinkRet) {}
 
@@ -28,6 +28,8 @@ service WatFS {
     rpc WatFSMkdir (WatFSMkdirArgs) returns (WatFSMkdirRet) {}
 
     rpc WatFSRmdir (WatFSRmdirArgs) returns (WatFSRmdirRet) {}
+
+    rpc WatFSUtimens (WatFSUtimensArgs) returns (WatFSUtimensRet) {}
 
     rpc WatFSCommit (WatFSCommitArgs) returns (WatFSCommitRet) {}
 }
@@ -127,13 +129,14 @@ message WatFSReaddirRet {
 
 /* CREATE */
 
-message WatFSCreateArgs {
+message WatFSMknodArgs {
     string path = 1;
     int64 mode = 2;
+    int64 rdev = 3;
 }
 
 
-message WatFSCreateRet {
+message WatFSMknodRet {
     int32 err = 1;
 }
 
@@ -181,6 +184,21 @@ message WatFSRenameArgs {
 message WatFSRenameRet {
     int32 err = 1;
 }
+
+/* UTIMENS */
+
+message WatFSUtimensArgs {
+    string path = 1;
+    int32 ts_access_sec = 2;
+    int64 ts_access_nsec = 3;
+    int32 ts_modify_sec = 4;
+    int64 ts_modify_nsec = 5;
+}
+
+message WatFSUtimensRet {
+    int32 err = 1;
+}
+
 
 /* COMMIT */
 

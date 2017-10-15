@@ -35,8 +35,8 @@ using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
 using watfs::WatFSReaddirArgs;
 using watfs::WatFSReaddirRet;
-using watfs::WatFSCreateArgs;
-using watfs::WatFSCreateRet;
+using watfs::WatFSMknodArgs;
+using watfs::WatFSMknodRet;
 using watfs::WatFSUnlinkArgs;
 using watfs::WatFSUnlinkRet;
 using watfs::WatFSRenameArgs;
@@ -45,6 +45,8 @@ using watfs::WatFSMkdirArgs;
 using watfs::WatFSMkdirRet;
 using watfs::WatFSRmdirArgs;
 using watfs::WatFSRmdirRet;
+using watfs::WatFSUtimensArgs;
+using watfs::WatFSUtimensRet;
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -146,7 +148,7 @@ public:
     /*
      * 
      */
-    int WatFSCreate(const string &path, mode_t mode);
+    int WatFSMknod(const string &path, mode_t mode, dev_t rdev);
 
 
     /*
@@ -171,6 +173,13 @@ public:
      * 
      */
     int WatFSRmdir(const string &path);
+
+
+    /*
+     * 
+     */
+    int WatFSUtimens(const string &path, struct timespec tv_access, 
+                     struct timespec tv_modify);
 
 
     /*
