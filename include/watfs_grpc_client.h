@@ -165,6 +165,12 @@ public:
     /*
      * 
      */
+    int WatFSRename(const string &from, const string &to);
+
+
+    /*
+     * 
+     */
     int WatFSMkdir(const string &path, mode_t mode);
 
 
@@ -172,12 +178,6 @@ public:
      * 
      */
     int WatFSRmdir(const string &path);
-
-
-    /*
-     * 
-     */
-    int WatFSRename(const string &from, const string &to);
 
 
     /*

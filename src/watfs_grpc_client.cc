@@ -315,3 +315,146 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
         return 0;
     }
 }
+
+
+int WatFSClient::WatFSCreate(const string &path, mode_t mode) {
+    ClientContext context;
+    WatFSCreateArgs create_args;
+    WatFSCreateRet create_ret;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    create_args.set_path(path);
+    create_args.set_mode(mode);
+
+    Status status = stub_->WatFSCreate(&context, create_args, &create_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (create_ret.err() != 0) {
+        errno = create_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
+}
+
+
+int WatFSClient::WatFSUnlink(const string &path) {
+    ClientContext context;
+    WatFSUnlinkArgs unlink_args;
+    WatFSUnlinkRet unlink_ret;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    unlink_args.set_path(path);
+
+    Status status = stub_->WatFSUnlink(&context, unlink_args, &unlink_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (unlink_ret.err() != 0) {
+        errno = unlink_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
+}
+
+
+int WatFSClient::WatFSRename(const string &from, const string &to) {
+    ClientContext context;
+    WatFSRenameArgs rename_args;
+    WatFSRenameRet rename_ret;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    rename_args.set_source(from);
+    rename_args.set_dest(to);
+
+    Status status = stub_->WatFSRename(&context, rename_args, &rename_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (rename_ret.err() != 0) {
+        errno = rename_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
+}
+
+
+int WatFSClient::WatFSMkdir(const string &path, mode_t mode) {
+    ClientContext context;
+    WatFSMkdirArgs mkdir_args;
+    WatFSMkdirRet mkdir_ret;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    mkdir_args.set_path(path);
+    mkdir_args.set_mode(mode);
+
+    Status status = stub_->WatFSMkdir(&context, mkdir_args, &mkdir_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (mkdir_ret.err() != 0) {
+        errno = mkdir_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
+}
+
+
+int WatFSClient::WatFSRmdir(const string &path) {
+    ClientContext context;
+    WatFSRmdirArgs rmdir_args;
+    WatFSRmdirRet rmdir_ret;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    rmdir_args.set_path(path);
+
+    Status status = stub_->WatFSRmdir(&context, rmdir_args, &rmdir_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (rmdir_ret.err() != 0) {
+        errno = rmdir_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
+}

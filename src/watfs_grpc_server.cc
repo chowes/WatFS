@@ -2,6 +2,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -347,6 +348,8 @@ public:
 
         ret->set_err(0);
 
+        fh.close();
+
         return Status::OK;
     }
 
@@ -400,7 +403,18 @@ public:
      */
     Status WatFSCreate(ServerContext *context, const WatFSCreateArgs *args,
                        WatFSCreateRet *ret) {
-        
+
+        int err = creat(args->path().c_str(), args->mode());
+
+        if (err == -1) {
+            ret->set_err(errno);
+            perror("creat");
+        } else {
+            ret->set_err(0);
+        }
+
+        close(err);
+        return Status::OK;
     }
 
 
@@ -408,8 +422,35 @@ public:
      *
      */
     Status WatFSUnlink(ServerContext *context, const WatFSUnlinkArgs *args,
-                       WatFSLookupRet *ret) {
-        
+                       WatFSUnlinkRet *ret) {
+        int err = unlink(args->path().c_str());
+
+        if (err == -1) {
+            ret->set_err(errno);
+            perror("unlink");
+        } else {
+            ret->set_err(0);
+        }
+
+        return Status::OK;
+    }
+
+
+    /*
+     *
+     */
+    Status WatFRename(ServerContext *context, const WatFSRenameArgs *args,
+                       WatFSRenameRet *ret) {
+        int err = rename(args->source().c_str(), args->dest().c_str());
+
+        if (err == -1) {
+            ret->set_err(errno);
+            perror("rename");
+        } else {
+            ret->set_err(0);
+        }
+
+        return Status::OK;
     }
 
 
@@ -419,6 +460,16 @@ public:
     Status WatFSMkdir(ServerContext *context, const WatFSMkdirArgs *args,
                        WatFSMkdirRet *ret) {
 
+        int err = mkdir(args->path().c_str(), args->mode());
+
+        if (err == -1) {
+            ret->set_err(errno);
+            perror("rmdir");
+        } else {
+            ret->set_err(0);
+        }
+
+        return Status::OK;
     }
 
 
@@ -427,7 +478,16 @@ public:
      */
     Status WatFSRmdir(ServerContext *context, const WatFSRmdirArgs *args,
                        WatFSRmdirRet *ret) {
-        
+        int err = rmdir(args->path().c_str());
+
+        if (err == -1) {
+            ret->set_err(errno);
+            perror("unlink");
+        } else {
+            ret->set_err(0);
+        }
+
+        return Status::OK;
     }
 };
 

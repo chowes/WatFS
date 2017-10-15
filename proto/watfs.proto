@@ -19,15 +19,15 @@ service WatFS {
 
     rpc WatFSReaddir (WatFSReaddirArgs) returns (stream WatFSReaddirRet) {}
 
-    rpc WatFSCreate (WatFSCreateArgs) returns (stream WatFSCreateRet) {}
+    rpc WatFSCreate (WatFSCreateArgs) returns (WatFSCreateRet) {}
 
-    rpc WatFSUnlink (WatFSUnlinkArgs) returns (stream WatFSUnlinkRet) {}
+    rpc WatFSUnlink (WatFSUnlinkArgs) returns (WatFSUnlinkRet) {}
 
-    rpc WatFSRename (WatFSRenameArgs) returns (stream WatFSRenameRet) {}
+    rpc WatFSRename (WatFSRenameArgs) returns (WatFSRenameRet) {}
 
-    rpc WatFSMkdir (WatFSMkdirArgs) returns (stream WatFSMkdirRet) {}
+    rpc WatFSMkdir (WatFSMkdirArgs) returns (WatFSMkdirRet) {}
 
-    rpc WatFSRmdir (WatFSRmdirArgs) returns (stream WatFSRmdirRet) {}
+    rpc WatFSRmdir (WatFSRmdirArgs) returns (WatFSRmdirRet) {}
 
     rpc WatFSCommit (WatFSCommitArgs) returns (WatFSCommitRet) {}
 }
@@ -136,7 +136,7 @@ message WatFSReaddirRet {
 
 message WatFSCreateArgs {
     string path = 1;
-    int64 mode_t = 2;
+    int64 mode = 2;
 }
 
 
@@ -158,7 +158,7 @@ message WatFSUnlinkRet {
 
 message WatFSMkdirArgs {
     string path = 1;
-    int64 mode_t = 2;
+    int64 mode = 2;
 }
 
 
