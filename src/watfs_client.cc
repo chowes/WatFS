@@ -1,15 +1,23 @@
+#define FUSE_USE_VERSION 30
+
+#include <fuse.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <stddef.h>
+#include <assert.h>
+#include <dirent.h>
+#include <errno.h>
+#include <unistd.h>
+
 #include "watfs_grpc_client.h"
+
 
 static struct fuse_operations watfs_oper;
 
-/*
- * Command line options
- *
- * show help
- * -h, --help
- */
-static struct options {
-    WatFSClient *client;
+
+static struct options { 
     int show_help;
 } options;
 
@@ -21,68 +29,70 @@ static const struct fuse_opt option_spec[] = {
     FUSE_OPT_END
 };
 
-
 static void show_help(const char *progname)
 {
-    printf("usage: %s [options] <mountpoint>\n\n", progname);
-    printf("WatFS options:\n"
-           "    --none=<s>             none\n"
-           "\n");
+    std::cout << "usage: " << progname << " [-s -d] <mountpoint>\n\n";
 }
 
 
-// TODO: implement this properly, needs to have the same behaviour as stat
-static int watfs_getattr(const char *path, struct stat *stat_buf, 
-                         struct fuse_file_info *fi)
-{
-    (void) fi;
-    int err;
+static int watfs_getattr(const char *path, struct stat *stbuf,
+                          struct fuse_file_info *fi)
+{    
+    int res;
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()));
 
-    err = stat(path, stat_buf);
-    stat_buf->st_uid = getuid();
-    stat_buf->st_gid = getgid();
+    res = client.WatFSGetAttr(path, stbuf);
 
-    return err;
+    return res;
 }
 
 
-static int watfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler,
-                   off_t offset, struct fuse_file_info* fi, fuse_readdir_flags) {
-
+int watfs_opendir(const char *path, struct fuse_file_info *f)
+{    
     return 0;
 }
 
 
-/*
- * g++ complains about struct initialization, so this just initializes our
- * fuse_operations struct with the procedures we've defined
- */
-void set_operations(struct fuse_operations *ops)
+int watfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, 
+                  off_t offset, struct fuse_file_info *fi, 
+                  enum fuse_readdir_flags flags)
 {
-    ops->getattr     = watfs_getattr;
-    ops->readdir     = watfs_readdir;
+    int res;
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()));
+
+    res = client.WatFSReaddir(path, buf, filler);
+    
+    return res;
 }
 
 
-int main(int argc, char *argv[])
-{
+void set_fuse_ops(struct fuse_operations *ops) {
+    ops->getattr = watfs_getattr;
+    ops->opendir = watfs_opendir;
+    ops->readdir = watfs_readdir;
+}
+
+
+int main(int argc, char* argv[]){
+
     struct fuse_args args = FUSE_ARGS_INIT(argc, argv);
 
-    /* Parse options */
-    if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1)
+    if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1) {
         return 1;
+    }
 
-    /* show our help message, then the fuse help message */
     if (options.show_help) {
         show_help(argv[0]);
         assert(fuse_opt_add_arg(&args, "--help") == 0);
         args.argv[0] = (char*) "";
     }
 
-    options.client = new WatFSClient(grpc::CreateChannel("localhost:8080", 
-                                        grpc::InsecureChannelCredentials()));
+    set_fuse_ops(&watfs_oper);
 
-    set_operations(&watfs_oper);
-
-    return fuse_main(args.argc, args.argv, &watfs_oper, NULL);
+    return fuse_main(argc, argv, &watfs_oper, &options);
 }
+
+
+

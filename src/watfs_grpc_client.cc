@@ -18,10 +18,6 @@ bool WatFSClient::WatFSNull() {
     WatFSStatus client_status;
     WatFSStatus server_status;
 
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
-
     client_status.set_status(0);
 
     Status status = stub_->WatFSNull(&context, client_status, 
@@ -43,10 +39,6 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
 
     string marshalled_attr;
 
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
-
     getattr_args.set_file_path(filename);
 
     Status status = stub_->WatFSGetAttr(&context, getattr_args, 
@@ -54,7 +46,6 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
-        cerr << status.error_message() << endl;
         return -errno;
     }
 
@@ -85,10 +76,6 @@ int WatFSClient::WatFSLookup(const string &dir, const string &file,
     string marshalled_file_handle;
     string marshalled_file_attr;
     string marshalled_dir_attr;
-
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
 
     lookup_args.set_dir_handle(dir);
     lookup_args.set_file_name(file);
@@ -136,10 +123,6 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
     string marshalled_data;
 
     int bytes_read = 0;
-
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
 
     read_args.set_file_handle(file_handle);
     read_args.set_offset(offset);
@@ -203,9 +186,6 @@ int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
     string marshalled_file_attr;
 
     int bytes_sent = 0;
-
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
 
     unique_ptr<ClientWriter<WatFSWriteArgs>> writer(
         stub_->WatFSWrite(&context, &write_ret));
@@ -272,9 +252,6 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
     struct dirent dir_entry;
     struct stat attr;
 
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
     readdir_args.set_file_handle(file_handle);
 
     unique_ptr<ClientReader<WatFSReaddirRet>> reader(
@@ -324,9 +301,6 @@ int WatFSClient::WatFSCreate(const string &path, mode_t mode) {
     WatFSCreateArgs create_args;
     WatFSCreateRet create_ret;
 
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
     create_args.set_path(path);
     create_args.set_mode(mode);
 
@@ -353,9 +327,6 @@ int WatFSClient::WatFSUnlink(const string &path) {
     WatFSUnlinkArgs unlink_args;
     WatFSUnlinkRet unlink_ret;
 
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
     unlink_args.set_path(path);
 
     Status status = stub_->WatFSUnlink(&context, unlink_args, &unlink_ret);
@@ -380,9 +351,6 @@ int WatFSClient::WatFSRename(const string &from, const string &to) {
     ClientContext context;
     WatFSRenameArgs rename_args;
     WatFSRenameRet rename_ret;
-
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
 
     rename_args.set_source(from);
     rename_args.set_dest(to);
@@ -410,9 +378,6 @@ int WatFSClient::WatFSMkdir(const string &path, mode_t mode) {
     WatFSMkdirArgs mkdir_args;
     WatFSMkdirRet mkdir_ret;
 
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
-
     mkdir_args.set_path(path);
     mkdir_args.set_mode(mode);
 
@@ -438,9 +403,6 @@ int WatFSClient::WatFSRmdir(const string &path) {
     ClientContext context;
     WatFSRmdirArgs rmdir_args;
     WatFSRmdirRet rmdir_ret;
-
-    context.set_wait_for_ready(true);
-    context.set_deadline(GetDeadline());
 
     rmdir_args.set_path(path);
 

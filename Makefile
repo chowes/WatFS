@@ -15,7 +15,7 @@ vpath %.proto $(PROTOS_PATH)
 vpath %.cc $(SRC_PATH)
 
 
-all: watfs_server watfs_grpc_server client_test watfs_client
+all: watfs_grpc_server client_test watfs_client
 
 watfs_client: watfs_client.o watfs.pb.o watfs.grpc.pb.o watfs_grpc_client.o
 	$(CXX) $^  $(LDFLAGS) -o $@

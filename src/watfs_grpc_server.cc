@@ -63,8 +63,8 @@ public:
     explicit WatFSServer(const char *root_dir) {
         // here we want to set up the server to use the specified root directory
         root_directory.assign(root_dir);
-        if (root_directory.back() != '/') {
-            root_directory += "/";
+        if (root_directory.back() == '/') {
+            root_directory.erase(root_directory.end()-1);  
         }
         cout << "WatFS server root directory set to: " + root_directory << endl;
     }
@@ -74,6 +74,8 @@ public:
         
         // just echo the status back to the client, like a heartbeat
         server_status->set_status(client_status->status());
+
+        cerr << "DEBUG: received ping from client" << endl;
 
         return Status::OK;
     }
@@ -89,19 +91,25 @@ public:
     Status WatFSGetAttr(ServerContext *context, const WatFSGetAttrArgs *args,
                         WatFSGetAttrRet *attr) override {
         
+        string file_path;
         struct stat statbuf;
         string marshalled_attr;
         
         int err;
 
+        file_path = translate_pathname(args->file_path());
+
+        cerr << "DEBUG: getattr - " << file_path << endl;
+
         memset(&statbuf, 0, sizeof statbuf);
-        err = stat(args->file_path().c_str(), &statbuf);
+        err = stat(file_path.c_str(), &statbuf);
         marshalled_attr.assign((const char*)&statbuf, sizeof statbuf);
 
         attr->set_attr(marshalled_attr);
         if (err == -1) {
             // we want to set err so FUSE can throw informative errors
             attr->set_err(errno);
+            perror("DEBUG: getattr");
         } else {
             // no error, set err to 0
             attr->set_err(err);
@@ -137,7 +145,7 @@ public:
         int err;
 
         // concatenate the directory handle and file name to get a path
-        file_path = args->dir_handle() + args->file_name();
+        file_path = translate_pathname(args->dir_handle() + args->file_name());
 
         // use stat to get dir and file attributes
         memset(&dir_stat, 0, sizeof dir_stat);
@@ -368,15 +376,16 @@ public:
         DIR *dh;
         struct stat attr;
         struct dirent *dir_entry;
+        string file_path;
         
         string marshalled_attr;
         string marshalled_dir_entry;
 
         WatFSReaddirRet ret;
 
-        cout << args->file_handle() << endl;
+        file_path = translate_pathname(args->file_handle());
 
-        dh = opendir(args->file_handle().c_str());
+        dh = opendir(file_path.c_str());
         dir_entry = readdir(dh);
         if (dir_entry == NULL) {
             // should never happen!
@@ -500,7 +509,8 @@ public:
 private:
     string root_directory;
 
-    string translatePathname(string &pathname) {
+    string translate_pathname(const string &pathname) {
+        cout << root_directory << endl;
         return root_directory + pathname;
     }
 };
