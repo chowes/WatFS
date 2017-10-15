@@ -135,61 +135,16 @@ public:
                        WatFSLookupRet *ret) override {
 
         string file_path;
-        string marshalled_file_attr;
-        string marshalled_dir_attr;
+        struct stat statbuf;
         fstream fh;
-
-        struct stat file_stat;
-        struct stat dir_stat;
 
         int err;
 
         // concatenate the directory handle and file name to get a path
-        file_path = translate_pathname(args->dir_handle() + args->file_name());
+        file_path = translate_pathname(args->file_path());
 
-        // use stat to get dir and file attributes
-        memset(&dir_stat, 0, sizeof dir_stat);
-        err = stat(args->dir_handle().c_str(), &dir_stat);
-        marshalled_dir_attr.assign((const char*)&dir_stat, sizeof dir_stat);
-
-        /* we "short circuit" here, make sure to check for a non-zero err,
-         * since the rest of the return params won't be valid */
-        if (err) {
-            ret->set_err(errno);
-            perror("stat");
-            return Status::OK;
-        }
-        ret->set_dir_attr(marshalled_dir_attr);
-
-        memset(&file_stat, 0, sizeof file_stat);
-        err = stat(file_path.c_str(), &file_stat);
-        marshalled_file_attr.assign((const char*)&file_stat, sizeof file_stat);
-
-        /* we "short circuit" here, make sure to check for a non-zero err,
-         * since the rest of the return params won't be valid */
-        if (err) {
-            ret->set_err(errno);
-            perror("stat");
-            return Status::OK;
-        }
-        ret->set_file_attr(marshalled_file_attr);
-
-        // if the object is a directory, we just want to return its path
-        if (!S_ISREG(file_stat.st_mode)) {
-            ret->set_file_handle(file_path);
-            return Status::OK;
-        }
-
-        fh.open(file_path, ios::in | ios::out | ios::binary);
-        if (fh.fail()) {
-            ret->set_err(errno);
-            perror("open");
-            fh.close();
-            return Status::OK;
-        }
-        fh.close();
+        err = stat(file_path.c_str(), &statbuf);
         
-        ret->set_file_handle(file_path);
         ret->set_err(0);
 
         return Status::OK;
@@ -209,9 +164,8 @@ public:
         
         struct stat attr;
         int count;
-        bool eof;
 
-        string marshalled_attr;
+        string path;
         string marshalled_data;
 
         WatFSReadRet ret;
@@ -221,7 +175,11 @@ public:
 
         fstream fh;
 
-        fh.open(args->file_handle(), ios::in | ios::binary);
+        path = translate_pathname(args->file_handle());
+
+        cerr << "DEBUG: read - " << path << endl;
+
+        fh.open(path, ios::in | ios::binary);
         if (fh.fail()) {
             ret.set_err(errno);
             writer->Write(ret);
@@ -229,22 +187,9 @@ public:
             fh.close();
             return Status::OK;
         }
-        
 
-        memset(&attr, 0, sizeof attr);
-        err = stat(args->file_handle().c_str(), &attr);
-        if (err == -1) {
-            // not open for reading
-            ret.set_err(errno);
-            perror("stat");
-            writer->Write(ret);
-            return Status::OK;
-        }
 
-        marshalled_attr.assign((const char*)&attr, sizeof attr);
-        ret.set_file_attr(marshalled_attr);
-
-        // we still want to read data as a big chunk on the server
+        // we want to read data as a big chunk on the server
         char *data = new char[args->count()];
 
         // read count bytes from file start at offset
@@ -253,7 +198,6 @@ public:
 
         fh.read(data, args->count());
         count = fh.gcount();
-        eof = fh.eof();
         if (fh.bad()) {
             // not open for reading
             ret.set_err(errno);
@@ -279,7 +223,9 @@ public:
             bytes_sent += msg_sz;
         }
 
+        delete data;
         fh.close();
+
 
         return Status::OK;
     }
@@ -292,8 +238,7 @@ public:
                       *reader, WatFSWriteRet *ret) override {
 
         WatFSWriteArgs args;
-
-        struct stat attr;
+        string path;
 
         string marshalled_attr;
         string marshalled_data;
@@ -306,8 +251,9 @@ public:
 
         // we have to do our first read outside of the loop
         reader->Read(&args);
+        path = translate_pathname(args.file_handle());
 
-        fh.open(args.file_handle(), ios::out | ios::binary);
+        fh.open(path, ios::out | ios::binary);
         if (fh.fail()) {
             ret->set_err(errno);
             perror("open");
@@ -356,9 +302,6 @@ public:
             ret->set_commit(false);
         }
 
-        marshalled_attr.assign((const char*)&attr, sizeof attr);
-        ret->set_file_attr(marshalled_attr);
-
         ret->set_err(0);
 
         fh.close();
@@ -385,9 +328,12 @@ public:
 
         file_path = translate_pathname(args->file_handle());
 
+        cerr << "DEBUG: readdir - " << file_path << endl;
+
         dh = opendir(file_path.c_str());
         dir_entry = readdir(dh);
         if (dir_entry == NULL) {
+            cerr << "DEBUG: readdir - null dir_entry!" << endl;
             // should never happen!
             ret.set_err(errno);
             writer->Write(ret);
@@ -400,7 +346,8 @@ public:
             ret.set_dir_entry(marshalled_dir_entry);
             
             memset(&attr, 0, sizeof attr);
-            stat(args->file_handle().c_str(), &attr);
+            cerr << "DEBUG: readdir - found entry: " << dir_entry->d_name << endl;
+            stat(dir_entry->d_name, &attr);
             marshalled_attr.assign((const char *)&attr, sizeof attr);
             ret.set_attr(marshalled_attr);
 
@@ -417,9 +364,13 @@ public:
      *
      */
     Status WatFSCreate(ServerContext *context, const WatFSCreateArgs *args,
-                       WatFSCreateRet *ret) {
+                       WatFSCreateRet *ret) override {
 
-        int err = creat(args->path().c_str(), args->mode());
+        string path;
+
+        path = translate_pathname(args->path());
+
+        int err = creat(path.c_str(), args->mode());
 
         if (err == -1) {
             ret->set_err(errno);
@@ -437,8 +388,13 @@ public:
      *
      */
     Status WatFSUnlink(ServerContext *context, const WatFSUnlinkArgs *args,
-                       WatFSUnlinkRet *ret) {
-        int err = unlink(args->path().c_str());
+                       WatFSUnlinkRet *ret) override {
+
+        string path;
+
+        path = translate_pathname(args->path());
+
+        int err = unlink(path.c_str());
 
         if (err == -1) {
             ret->set_err(errno);
@@ -454,9 +410,18 @@ public:
     /*
      *
      */
-    Status WatFRename(ServerContext *context, const WatFSRenameArgs *args,
-                       WatFSRenameRet *ret) {
-        int err = rename(args->source().c_str(), args->dest().c_str());
+    Status WatFSRename(ServerContext *context, const WatFSRenameArgs *args,
+                       WatFSRenameRet *ret) override {
+
+        string source_path;
+        string dest_path;
+
+        source_path = translate_pathname(args->source());
+        dest_path = translate_pathname(args->dest());
+
+        cerr << "DEBUG: rename - " << source_path << " to: " << dest_path << endl;
+
+        int err = rename(source_path.c_str(), dest_path.c_str());
 
         if (err == -1) {
             ret->set_err(errno);
@@ -473,9 +438,13 @@ public:
      *
      */
     Status WatFSMkdir(ServerContext *context, const WatFSMkdirArgs *args,
-                       WatFSMkdirRet *ret) {
+                       WatFSMkdirRet *ret) override {
 
-        int err = mkdir(args->path().c_str(), args->mode());
+        string path;
+
+        path = translate_pathname(args->path());
+
+        int err = mkdir(path.c_str(), args->mode());
 
         if (err == -1) {
             ret->set_err(errno);
@@ -492,8 +461,13 @@ public:
      *
      */
     Status WatFSRmdir(ServerContext *context, const WatFSRmdirArgs *args,
-                       WatFSRmdirRet *ret) {
-        int err = rmdir(args->path().c_str());
+                       WatFSRmdirRet *ret) override {
+
+        string path;
+
+        path = translate_pathname(args->path());
+
+        int err = rmdir(path.c_str());
 
         if (err == -1) {
             ret->set_err(errno);
@@ -510,7 +484,6 @@ private:
     string root_directory;
 
     string translate_pathname(const string &pathname) {
-        cout << root_directory << endl;
         return root_directory + pathname;
     }
 };

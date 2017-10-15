@@ -65,20 +65,15 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
 }
 
 
-int WatFSClient::WatFSLookup(const string &dir, const string &file, 
-                             string &file_handle,struct stat *file_stat, 
-                             struct stat *dir_stat) {
+int WatFSClient::WatFSLookup(const string &path) {
 
     ClientContext context;
     WatFSLookupArgs lookup_args;
     WatFSLookupRet lookup_ret;
 
     string marshalled_file_handle;
-    string marshalled_file_attr;
-    string marshalled_dir_attr;
 
-    lookup_args.set_dir_handle(dir);
-    lookup_args.set_file_name(file);
+    lookup_args.set_file_path(path);
 
     Status status = stub_->WatFSLookup(&context, lookup_args, &lookup_ret);
 
@@ -87,20 +82,6 @@ int WatFSClient::WatFSLookup(const string &dir, const string &file,
         cerr << status.error_message() << endl;
         return -errno;
     }
-
-
-    // fill in our file handle and attribute structures
-    marshalled_file_handle = lookup_ret.file_handle();
-    marshalled_dir_attr = lookup_ret.dir_attr();
-    marshalled_file_attr = lookup_ret.file_attr();
-
-    file_handle = marshalled_file_handle;
-
-    memset(dir_stat, 0, sizeof(struct stat));
-    memcpy(dir_stat, marshalled_dir_attr.data(), sizeof(struct stat));
-    
-    memset(file_stat, 0, sizeof(struct stat));
-    memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
 
     // on error we set errno and return -errno
     if (lookup_ret.err() != 0) {
@@ -113,7 +94,7 @@ int WatFSClient::WatFSLookup(const string &dir, const string &file,
 
 
 int WatFSClient::WatFSRead(const string &file_handle, int offset, int count, 
-                           bool &eof, struct stat *file_stat, char *data) {
+                           char *data) {
 
     ClientContext context;
     WatFSReadArgs read_args;
@@ -141,18 +122,10 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
             errno = read_ret.err();
             return -errno;
         }
-
-        marshalled_file_attr = read_ret.file_attr();
         marshalled_data = read_ret.data();
-        
-        // doing this every time is kind of inefficient
-        memset(file_stat, 0, sizeof(struct stat));
-        memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
      
         // assume alloc'd correctly in caller
         memcpy(data+bytes_read, marshalled_data.data(), read_ret.count());
-
-        eof = read_ret.eof();
 
         bytes_read += read_ret.count();
     }
@@ -176,7 +149,7 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 
 
 int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
-                            bool flush, struct stat *attr, const char *data) {
+                            bool flush, const char *data) {
     
     ClientContext context;
     WatFSWriteArgs write_args;
@@ -217,11 +190,6 @@ int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
 
     writer->WritesDone();
     Status status = writer->Finish();
-
-    marshalled_file_attr = write_ret.file_attr();
-    // doing this every time is kind of inefficient
-    memset(attr, 0, sizeof(struct stat));
-    memcpy(attr, marshalled_file_attr.data(), sizeof(struct stat));
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -273,7 +241,6 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
         
         /* we add the entry from here so we don't have to deal with sending back
          * a list */
-        cout << dir_entry.d_name << endl;
         filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
     }
 
@@ -359,7 +326,6 @@ int WatFSClient::WatFSRename(const string &from, const string &to) {
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
-        cerr << status.error_message() << endl;
         return -errno;
     }
 

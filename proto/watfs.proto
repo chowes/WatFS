@@ -70,8 +70,7 @@ message WatFSGetAttrRet {
  * handle as a string
  */
 message WatFSLookupArgs {
-    string dir_handle = 1;
-    string file_name = 2;
+    string file_path = 1;
 }
 
 /*
@@ -80,10 +79,7 @@ message WatFSLookupArgs {
  * attributes of the containing folder
  */
 message WatFSLookupRet {
-    string file_handle = 1;
-    bytes file_attr = 2;
-    bytes dir_attr = 3;
-    int32 err = 4;
+    int32 err = 1;
 }
 
 /* READ */
@@ -95,11 +91,9 @@ message WatFSReadArgs {
 }
 
 message WatFSReadRet {
-    bytes file_attr = 1;
-    int32 count = 2;
-    bool eof = 3;
-    bytes data = 4;
-    int32 err = 5;
+    int32 count = 1;
+    bytes data = 2;
+    int32 err = 3;
 }
 
 /* WRITE */
@@ -113,10 +107,9 @@ message WatFSWriteArgs {
 }
 
 message WatFSWriteRet {
-    bytes file_attr = 1;
-    int32 count = 2;
-    bool commit = 3;
-    int32 err = 4;
+    int32 count = 1;
+    bool commit = 2;
+    int32 err = 3;
 }
 
 /* READDIR */

@@ -100,15 +100,11 @@ public:
     /*
      * get a file handle from the server. 
      *
-     * given the handle of a directory to search and a file name, returns a
-     * file handle (the server representation of the file path), and fills in
-     * a struct stat with file attributes, and another struct stat with
-     * attributes for the containing directory 
+     * given the handle of a directory to search and a file name.
      * 
      * returns 0 on success, or -1 on failure, errno is set on error.
      */
-    int WatFSLookup(const string &dir, const string &file, string &file_handle,
-                    struct stat *file_stat, struct stat *dir_stat);
+    int WatFSLookup(const string &path);
 
 
     /*
@@ -116,14 +112,12 @@ public:
      *
      * Given a WatFS file handle (string containing server file path), we read
      * requested number of bytes from the file on the server into the given
-     * buffer. Given boolean eof is set to indicate eof, and a struct stat is
-     * populated with the attributes of the read file. 
+     * buffer.
      * 
      * returns number of bytes read into the buffer on success, or -1 on error.
      * errno is set on error.
      */
-    int WatFSRead(const string &file_handle, int offset, int count, bool &eof,
-                  struct stat *file_stat, char *data);
+    int WatFSRead(const string &file_handle, int offset, int count, char *data);
 
 
     /*
@@ -132,15 +126,14 @@ public:
      * Given a WatFS file handle (string containing server file path), we write
      * requested number of bytes to the file on the server at the specified 
      * offset from the given buffer. If commit is set to true, sync is called 
-     * and data is commited to disk. A struct stat is populated with the new 
-     * attributes of the modified file. An error field is sent back to the 
+     * and data is commited to disk. An error field is sent back to the 
      * client on error, set to relevant errno. 
      * 
      * returns number of bytes read into the buffer on success, or -1 on error.
      * errno is set on error.
      */
     int WatFSWrite(const string &file_handle, int offset, int count, bool flush,
-                   struct stat *attr, const char *data);
+                   const char *data);
 
 
     /*
