@@ -15,12 +15,9 @@ vpath %.proto $(PROTOS_PATH)
 vpath %.cc $(SRC_PATH)
 
 
-all: watfs_client watfs_server watfs_grpc_server client_test
+all: watfs_server watfs_grpc_server client_test watfs_client
 
-watfs_client: watfs_client.o
-	$(CXX) $^  $(LDFLAGS) -o $@
-
-watfs_server: watfs_server.o
+watfs_client: watfs_client.o watfs.pb.o watfs.grpc.pb.o watfs_grpc_client.o
 	$(CXX) $^  $(LDFLAGS) -o $@
 
 watfs_grpc_server: watfs.pb.o watfs.grpc.pb.o watfs_grpc_server.o
@@ -31,6 +28,7 @@ watfs_grpc_client: watfs.pb.o watfs.grpc.pb.o watfs_grpc_client.o
 
 client_test: client_test.o watfs.pb.o watfs.grpc.pb.o watfs_grpc_client.o
 	$(CXX) $^  $(LDFLAGS) -o $@
+
 
 %.grpc.pb.cc: %.proto
 	$(PROTOC) -I $(PROTOS_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<

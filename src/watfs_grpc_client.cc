@@ -2,12 +2,13 @@
 
 
 WatFSClient::WatFSClient(shared_ptr<Channel> channel) : 
-    stub_(WatFS::NewStub(channel)) {}
+    stub_(WatFS::NewStub(channel)) {
+        cout << "Started" << endl;
+    }
 
 
 WatFSClient::WatFSClient(shared_ptr<Channel> channel, long deadline) : 
     stub_(WatFS::NewStub(channel)) {
-
         grpc_deadline = deadline;
     }
 
@@ -296,7 +297,7 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
         /* we add the entry from here so we don't have to deal with sending back
          * a list */
         cout << dir_entry.d_name << endl;
-        // filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
+        filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
     }
 
     Status status = reader->Finish();
@@ -306,6 +307,7 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
         cerr << status.error_message() << endl;
         return -errno;
     }
+
 
     // on error we set errno and return -errno
     if (readdir_ret.err() != 0) {

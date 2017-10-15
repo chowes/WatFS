@@ -1,19 +1,6 @@
-#define FUSE_USE_VERSION 31
-
-#include <fuse.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <stddef.h>
-#include <assert.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
+#include "watfs_grpc_client.h"
 
 static struct fuse_operations watfs_oper;
-
 
 /*
  * Command line options
@@ -22,6 +9,7 @@ static struct fuse_operations watfs_oper;
  * -h, --help
  */
 static struct options {
+    WatFSClient *client;
     int show_help;
 } options;
 
@@ -58,8 +46,9 @@ static int watfs_getattr(const char *path, struct stat *stat_buf,
 }
 
 
-static int readdir(const char* path, void* buf, fuse_fill_dir_t filler,
-                   off_t offset, struct fuse_file_info* fi) {
+static int watfs_readdir(const char* path, void* buf, fuse_fill_dir_t filler,
+                   off_t offset, struct fuse_file_info* fi, fuse_readdir_flags) {
+
     return 0;
 }
 
@@ -71,6 +60,7 @@ static int readdir(const char* path, void* buf, fuse_fill_dir_t filler,
 void set_operations(struct fuse_operations *ops)
 {
     ops->getattr     = watfs_getattr;
+    ops->readdir     = watfs_readdir;
 }
 
 
@@ -88,6 +78,9 @@ int main(int argc, char *argv[])
         assert(fuse_opt_add_arg(&args, "--help") == 0);
         args.argv[0] = (char*) "";
     }
+
+    options.client = new WatFSClient(grpc::CreateChannel("localhost:8080", 
+                                        grpc::InsecureChannelCredentials()));
 
     set_operations(&watfs_oper);
 

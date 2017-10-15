@@ -62,6 +62,11 @@ class WatFSServer final : public WatFS::Service {
 public:
     explicit WatFSServer(const char *root_dir) {
         // here we want to set up the server to use the specified root directory
+        root_directory.assign(root_dir);
+        if (root_directory.back() != '/') {
+            root_directory += "/";
+        }
+        cout << "WatFS server root directory set to: " + root_directory << endl;
     }
 
     Status WatFSNull(ServerContext *context, const WatFSStatus *client_status,
@@ -369,6 +374,7 @@ public:
 
         WatFSReaddirRet ret;
 
+        cout << args->file_handle() << endl;
 
         dh = opendir(args->file_handle().c_str());
         dir_entry = readdir(dh);
@@ -489,6 +495,14 @@ public:
 
         return Status::OK;
     }
+
+
+private:
+    string root_directory;
+
+    string translatePathname(string &pathname) {
+        return root_directory + pathname;
+    }
 };
 
 
@@ -535,7 +549,6 @@ int main(int argc, const char *argv[])
         return 1;
     }
 
-    cout << "Server set mount directory to: " << root_dir << endl;
     StartWatFSServer(root_dir, server_address);
 
     return 0;
