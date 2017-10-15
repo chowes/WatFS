@@ -1,6 +1,10 @@
+#define FUSE_USE_VERSION 30
+
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
+#include <fuse.h>
 
 #include <iostream>
 #include <memory>
@@ -31,6 +35,16 @@ using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
 using watfs::WatFSReaddirArgs;
 using watfs::WatFSReaddirRet;
+using watfs::WatFSCreateArgs;
+using watfs::WatFSCreateRet;
+using watfs::WatFSUnlinkArgs;
+using watfs::WatFSUnlinkRet;
+using watfs::WatFSRenameArgs;
+using watfs::WatFSRenameRet;
+using watfs::WatFSMkdirArgs;
+using watfs::WatFSMkdirRet;
+using watfs::WatFSRmdirArgs;
+using watfs::WatFSRmdirRet;
 
 using grpc::Channel;
 using grpc::ClientContext;
@@ -132,7 +146,38 @@ public:
     /*
      * 
      */
-    int WatFSReaddir();
+    int WatFSReaddir(const string &file_handle, void *buffer, 
+                     fuse_fill_dir_t filler);
+
+
+    /*
+     * 
+     */
+    int WatFSCreate(const string &path, mode_t mode);
+
+
+    /*
+     * 
+     */
+    int WatFSUnlink(const string &path);
+
+
+    /*
+     * 
+     */
+    int WatFSMkdir(const string &path, mode_t mode);
+
+
+    /*
+     * 
+     */
+    int WatFSRmdir(const string &path);
+
+
+    /*
+     * 
+     */
+    int WatFSRename(const string &from, const string &to);
 
 
     /*

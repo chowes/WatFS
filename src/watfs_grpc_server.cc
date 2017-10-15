@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <dirent.h>
 
 #include <fstream>
 #include <iostream>
@@ -32,6 +33,16 @@ using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
 using watfs::WatFSReaddirArgs;
 using watfs::WatFSReaddirRet;
+using watfs::WatFSCreateArgs;
+using watfs::WatFSCreateRet;
+using watfs::WatFSUnlinkArgs;
+using watfs::WatFSUnlinkRet;
+using watfs::WatFSRenameArgs;
+using watfs::WatFSRenameRet;
+using watfs::WatFSMkdirArgs;
+using watfs::WatFSMkdirRet;
+using watfs::WatFSRmdirArgs;
+using watfs::WatFSRmdirRet;
 
 using grpc::Server;
 using grpc::ServerBuilder;
@@ -366,9 +377,79 @@ public:
      * 
      */
     Status WatFSReaddir(ServerContext *context, const WatFSReaddirArgs *args,
-                       WatFSReaddirRet *ret) override {
+                       ServerWriter<WatFSReaddirRet> *writer) override {
+
+        DIR *dh;
+        struct stat attr;
+        struct dirent *dir_entry;
+        
+        string marshalled_attr;
+        string marshalled_dir_entry;
+
+        WatFSReaddirRet ret;
+
+
+        dh = opendir(args->file_handle().c_str());
+        dir_entry = readdir(dh);
+        if (dir_entry == NULL) {
+            // should never happen!
+            ret.set_err(errno);
+            writer->Write(ret);
+            return Status::OK;
+        }
+
+        do {
+            marshalled_dir_entry.assign((const char *)dir_entry, 
+                                        sizeof(struct dirent));            
+            ret.set_dir_entry(marshalled_dir_entry);
+            
+            memset(&attr, 0, sizeof attr);
+            stat(args->file_handle().c_str(), &attr);
+            marshalled_attr.assign((const char *)&attr, sizeof attr);
+            ret.set_attr(marshalled_attr);
+
+            writer->Write(ret);
+        } while (dir_entry = readdir(dh));
+
+        closedir(dh);
 
         return Status::OK;
+    }
+
+
+    /*
+     *
+     */
+    Status WatFSCreate(ServerContext *context, const WatFSCreateArgs *args,
+                       WatFSCreateRet *ret) {
+        
+    }
+
+
+    /*
+     *
+     */
+    Status WatFSUnlink(ServerContext *context, const WatFSUnlinkArgs *args,
+                       WatFSLookupRet *ret) {
+        
+    }
+
+
+    /*
+     *
+     */
+    Status WatFSMkdir(ServerContext *context, const WatFSMkdirArgs *args,
+                       WatFSMkdirRet *ret) {
+
+    }
+
+
+    /*
+     *
+     */
+    Status WatFSRmdir(ServerContext *context, const WatFSRmdirArgs *args,
+                       WatFSRmdirRet *ret) {
+        
     }
 };
 

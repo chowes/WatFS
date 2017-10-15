@@ -54,7 +54,7 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
     if (!status.ok()) {
         errno = ETIMEDOUT;
         cerr << status.error_message() << endl;
-        return -1;
+        return -errno;
     }
 
     marshalled_attr = getattr_ret.attr();
@@ -62,10 +62,10 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
     memcpy(statbuf, marshalled_attr.data(), sizeof(struct stat));
     
 
-    // on error we set errno and return -1
+    // on error we set errno and return -errno
     if (getattr_ret.err() != 0) {
         errno = getattr_ret.err();
-        return -1;
+        return -errno;
     } else {
         return 0;
     }
@@ -97,7 +97,7 @@ int WatFSClient::WatFSLookup(const string &dir, const string &file,
     if (!status.ok()) {
         errno = ETIMEDOUT;
         cerr << status.error_message() << endl;
-        return -1;
+        return -errno;
     }
 
 
@@ -114,10 +114,10 @@ int WatFSClient::WatFSLookup(const string &dir, const string &file,
     memset(file_stat, 0, sizeof(struct stat));
     memcpy(file_stat, marshalled_file_attr.data(), sizeof(struct stat));
 
-    // on error we set errno and return -1
+    // on error we set errno and return -errno
     if (lookup_ret.err() != 0) {
         errno = lookup_ret.err();
-        return -1;
+        return -errno;
     } else {
         return 0;
     }
@@ -155,7 +155,7 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
         // fail as soon as we find a problem
         if (read_ret.count() == -1) {
             errno = read_ret.err();
-            return -1;
+            return -errno;
         }
 
         marshalled_file_attr = read_ret.file_attr();
@@ -178,13 +178,13 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
     if (!status.ok()) {
         errno = ETIMEDOUT;
         cerr << status.error_message() << endl;
-        return -1;
+        return -errno;
     }
 
-    // on error we set errno and return -1
+    // on error we set errno and return -errno
     if (read_ret.err() != 0 || read_ret.count() == -1) {
         errno = read_ret.err();
-        return -1;
+        return -errno;
     } else {
         return bytes_read;
     }
@@ -245,19 +245,73 @@ int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
     if (!status.ok()) {
         errno = ETIMEDOUT;
         cerr << status.error_message() << endl;
-        return -1;
+        return -errno;
     }
 
-    // on error we set errno and return -1
+    // on error we set errno and return -errno
     if (write_ret.err() != 0 || write_ret.count() == -1) {
         errno = write_ret.err();
-        return -1;
+        return -errno;
     } else {
         return bytes_sent;
     }
 }
 
 
-int WatFSClient::WatFSReaddir() {
+int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer, 
+                              fuse_fill_dir_t filler) {
 
+    ClientContext context;
+    WatFSReaddirArgs readdir_args;
+    WatFSReaddirRet readdir_ret;
+    
+    string marshalled_attr;
+    string marshalled_dir_entry;
+
+    struct dirent dir_entry;
+    struct stat attr;
+
+    context.set_wait_for_ready(true);
+    context.set_deadline(GetDeadline());
+
+    readdir_args.set_file_handle(file_handle);
+
+    unique_ptr<ClientReader<WatFSReaddirRet>> reader(
+        stub_->WatFSReaddir(&context, readdir_args));
+    
+
+    // read requested data from stream
+    while (reader->Read(&readdir_ret)) {
+
+        marshalled_attr = readdir_ret.attr();
+        marshalled_dir_entry = readdir_ret.dir_entry();
+        
+
+        memset(&attr, 0, sizeof(struct stat));
+        memcpy(&attr, marshalled_attr.data(), sizeof(struct stat));
+
+        memset(&dir_entry, 0, sizeof(struct dirent));
+        memcpy(&dir_entry, marshalled_dir_entry.data(), sizeof(struct stat));
+        
+        /* we add the entry from here so we don't have to deal with sending back
+         * a list */
+        cout << dir_entry.d_name << endl;
+        // filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
+    }
+
+    Status status = reader->Finish();
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (readdir_ret.err() != 0) {
+        errno = readdir_ret.err();
+        return -errno;
+    } else {
+        return 0;
+    }
 }

@@ -46,5 +46,7 @@ int main(int argc, const char *argv[])
         // cout << data << endl;
     }
 
+    client.WatFSReaddir("..", data, NULL);
+
     return 0;
 }

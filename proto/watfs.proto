@@ -17,7 +17,17 @@ service WatFS {
 
     rpc WatFSWrite (stream WatFSWriteArgs) returns (WatFSWriteRet) {}
 
-    rpc WatFSReaddir (WatFSReaddirArgs) returns (WatFSReaddirRet) {}
+    rpc WatFSReaddir (WatFSReaddirArgs) returns (stream WatFSReaddirRet) {}
+
+    rpc WatFSCreate (WatFSCreateArgs) returns (stream WatFSCreateRet) {}
+
+    rpc WatFSUnlink (WatFSUnlinkArgs) returns (stream WatFSUnlinkRet) {}
+
+    rpc WatFSRename (WatFSRenameArgs) returns (stream WatFSRenameRet) {}
+
+    rpc WatFSMkdir (WatFSMkdirArgs) returns (stream WatFSMkdirRet) {}
+
+    rpc WatFSRmdir (WatFSRmdirArgs) returns (stream WatFSRmdirRet) {}
 
     rpc WatFSCommit (WatFSCommitArgs) returns (WatFSCommitRet) {}
 }
@@ -113,18 +123,71 @@ message WatFSWriteRet {
 
 message WatFSReaddirArgs {
     string file_handle = 1;
-    int32 cookie = 2; // necessary? maybe use a stream?
-    int32 cookie_verf = 3;
-    int32 count = 4;
 }
 
 message WatFSReaddirRet {
-    bytes dir_attr = 1;
-    bytes data = 2;
-    bool eof = 3;
-    int32 err = 4;    
+    bytes attr = 1;  
+    bytes dir_entry = 2;
+    int32 err = 3;
 }
 
+
+/* CREATE */
+
+message WatFSCreateArgs {
+    string path = 1;
+    int64 mode_t = 2;
+}
+
+
+message WatFSCreateRet {
+    int32 err = 1;
+}
+
+/* UNLINK */
+
+message WatFSUnlinkArgs {
+    string path = 1;
+}
+
+message WatFSUnlinkRet {
+    int32 err = 1;
+}
+
+/* MKDIR */
+
+message WatFSMkdirArgs {
+    string path = 1;
+    int64 mode_t = 2;
+}
+
+
+message WatFSMkdirRet {
+    int32 err = 1;
+}
+
+/* RMDIR */
+
+message WatFSRmdirArgs {
+    string path = 1;
+}
+
+message WatFSRmdirRet {
+    int32 err = 1;
+}
+
+
+/* RENAME */
+
+message WatFSRenameArgs {
+    string source = 1;
+    string dest = 2;
+}
+
+
+message WatFSRenameRet {
+    int32 err = 1;
+}
 
 /* COMMIT */
 
