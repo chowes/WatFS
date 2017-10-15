@@ -148,52 +148,26 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 }
 
 
-int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
-                            bool flush, const char *data) {
+int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count, 
+                            const char *data) {
     
     ClientContext context;
     WatFSWriteArgs write_args;
     WatFSWriteRet write_ret;
 
     string marshalled_data;
-    string marshalled_file_attr;
 
-    int bytes_sent = 0;
-
-    unique_ptr<ClientWriter<WatFSWriteArgs>> writer(
-        stub_->WatFSWrite(&context, &write_ret));
-
+    marshalled_data.assign(data, count); 
+    
     write_args.set_file_handle(file_handle);
+    write_args.set_offset(offset);
+    write_args.set_count(count);
+    write_args.set_data(marshalled_data);
 
-    cerr << write_args.file_handle() << endl;
-
-    write_args.set_commit(flush);
-
-    int msg_sz;
-    while (bytes_sent < count) {
-        msg_sz = min(MESSAGE_SZ, count - bytes_sent);
-        marshalled_data.assign(data+bytes_sent, msg_sz); 
-
-        write_args.set_offset(offset + bytes_sent);
-        write_args.set_count(msg_sz);
-        write_args.set_data(marshalled_data);
-
-        if (!writer->Write(write_args)) {
-            // TODO: does this imply an error? maybe we need to set errno...
-            break;
-        }
-
-        bytes_sent += msg_sz;
-
-        cerr << bytes_sent << endl;
-    }
-
-    writer->WritesDone();
-    Status status = writer->Finish();
+    Status status = stub_->WatFSWrite(&context, write_args, &write_ret);
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
-        cerr << status.error_message() << endl;
         return -errno;
     }
 
@@ -202,7 +176,7 @@ int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
         errno = write_ret.err();
         return -errno;
     } else {
-        return bytes_sent;
+        return write_ret.count();
     }
 }
 

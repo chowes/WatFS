@@ -61,10 +61,6 @@ using namespace std;
 #define __WATFS_GRPC_CLIENT__
 
 
-// This is the recommended message size for streams
-#define MESSAGE_SZ          16384
-
-
 class WatFSClient {
 public:
     
@@ -134,7 +130,7 @@ public:
      * returns number of bytes read into the buffer on success, or -1 on error.
      * errno is set on error.
      */
-    int WatFSWrite(const string &file_handle, int offset, int count, bool flush,
+    int WatFSWrite(const string &file_handle, int offset, int count,
                    const char *data);
 
 

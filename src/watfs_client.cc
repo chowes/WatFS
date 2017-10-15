@@ -132,7 +132,7 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
                        grpc::InsecureChannelCredentials()));
 
-    res = client.WatFSWrite(path, offset, size, true, buf);
+    res = client.WatFSWrite(path, offset, size, buf);
     
     return res;
 }

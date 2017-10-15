@@ -231,77 +231,37 @@ public:
     /*
      * 
      */
-    Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> 
-                      *reader, WatFSWriteRet *ret) override {
-
-        WatFSWriteArgs args;
+    Status WatFSWrite(ServerContext *context, const WatFSWriteArgs *args, 
+                      WatFSWriteRet *ret) override {
+        
         string path;
 
-        string marshalled_attr;
-        string marshalled_data;
+        path = translate_pathname(args->file_handle());
 
-        // bytes read from the stream
-        int bytes_read = 0;
-        int err;
-
-        fstream fh;
-
-        // we have to do our first read outside of the loop
-        reader->Read(&args);
-        path = translate_pathname(args.file_handle());
-
-        fh.open(path, ios::out | ios::binary);
-        if (fh.fail()) {
+        int fd = open(path.c_str(), O_WRONLY);
+        
+        if(fd == -1){
             ret->set_err(errno);
             perror("open");
-            fh.close();
             return Status::OK;
-        }
+        } 
 
-        do {
-            marshalled_data = args.data();
+        int err = pwrite(fd, args->data().data(), args->count(), args->offset());
 
-            // write to the proper offset
-            fh.clear();
-            // note: client updates the offset for us on each iteration!
-            fh.seekp(args.offset());
-            fh.write(marshalled_data.data(), args.count());
+        fsync(fd);
 
-            if (fh.bad()) {
-                ret->set_commit(false);
-                ret->set_count(-1);
-                ret->set_err(errno);
-                perror("write");
-                return Status::OK;
-            }
-
-            bytes_read += args.count();
-        } while (reader->Read(&args));
-
-         // always flush the buffer, not the same as sync
-        fh.flush();
-        // this shouldn't really fail, but we'll be cautious
-        if (fh.bad()) {
-            ret->set_commit(false);
-            ret->set_count(-1);
+        if (err == -1){
             ret->set_err(errno);
-            perror("flush");
+            perror("pwrite");
             return Status::OK;
         }
+        
+        cout << "DEBUG: write - " << err << args << endl;
 
-        // set the total bytes written to file
-        ret->set_count(bytes_read);
-
-        if (args.commit()) {
-            sync(); // syncs all changes, not just this file
-            ret->set_commit(true);
-        } else {
-            ret->set_commit(false);
-        }
-
+        ret->set_count(err);
         ret->set_err(0);
-
-        fh.close();
+    
+        close(fd);
 
         return Status::OK;
     }

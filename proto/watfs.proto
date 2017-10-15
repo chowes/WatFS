@@ -15,7 +15,7 @@ service WatFS {
     // TODO: change this to use a stream
     rpc WatFSRead (WatFSReadArgs) returns (stream WatFSReadRet) {}
 
-    rpc WatFSWrite (stream WatFSWriteArgs) returns (WatFSWriteRet) {}
+    rpc WatFSWrite (WatFSWriteArgs) returns (WatFSWriteRet) {}
 
     rpc WatFSReaddir (WatFSReaddirArgs) returns (stream WatFSReaddirRet) {}
 
@@ -104,7 +104,6 @@ message WatFSWriteArgs {
     string file_handle = 1;
     int32 offset = 2;
     int32 count = 3;
-    bool commit = 4;
     bytes data = 5;
 }
 
