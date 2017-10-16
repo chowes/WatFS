@@ -58,8 +58,7 @@ using grpc::Status;
 
 using namespace std;
 
-// This is the recommended message size for streams
-#define MESSAGE_SZ          16384
+#define MESSAGE_SZ          4096
 
 
 class WatFSServer final : public WatFS::Service {
@@ -233,33 +232,37 @@ public:
     /*
      * 
      */
-    Status WatFSWrite(ServerContext *context, const WatFSWriteArgs *args, 
+    Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> *reader, 
                       WatFSWriteRet *ret) override {
         
+        WatFSWriteArgs args;
         string path;
+        int bytes_written = 0;
+        int res;
 
-        path = translate_pathname(args->file_path());
+        int fd;
 
-        cout << args->size() << endl;
+        reader->Read(&args);
 
-        ofstream file(path, ios::binary);
-        file.seekp(args->offset());
-        file.write(args->buffer().data(), args->size());
-        if (file.bad()) {
-            perror("write");
-            cout << args->size() << endl;
-            cout << args->buffer().length() << endl;
-            ret->set_err(errno);
-            ret->set_size(-1);
-            return Status::OK;
-        }
+        path = translate_pathname(args.file_path());
+        fd = open(path.c_str(), O_WRONLY | O_SYNC);
 
-        file.flush();
-        file.close();
+        do {
+            lseek(fd, args.offset(), SEEK_SET);
+            res = write(fd, args.buffer().data(), args.size());
+            if (res == -1) {
+                perror("write");
+                ret->set_err(errno);
+                ret->set_size(-1);
+                return Status::OK;
+            }
+            bytes_written += res;
+        } while (reader->Read(&args));
 
-        sync();
+        close(fd);
 
-        ret->set_size(args->size());
+        ret->set_size(bytes_written);
+        ret->set_err(0);
 
         return Status::OK;
     }

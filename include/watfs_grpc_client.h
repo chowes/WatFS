@@ -59,6 +59,9 @@ using grpc::Status;
 using namespace std;
 
 
+#define MESSAGE_SZ          4096
+
+
 #ifndef __WATFS_GRPC_CLIENT__
 #define __WATFS_GRPC_CLIENT__
 

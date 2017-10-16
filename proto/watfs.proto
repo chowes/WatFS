@@ -15,7 +15,7 @@ service WatFS {
     // TODO: change this to use a stream
     rpc WatFSRead (WatFSReadArgs) returns (stream WatFSReadRet) {}
 
-    rpc WatFSWrite (WatFSWriteArgs) returns (WatFSWriteRet) {}
+    rpc WatFSWrite (stream WatFSWriteArgs) returns (WatFSWriteRet) {}
 
     rpc WatFSTruncate (WatFSTruncateArgs) returns (WatFSTruncateRet) {}
 
