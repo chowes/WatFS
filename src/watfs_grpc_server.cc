@@ -32,6 +32,8 @@ using watfs::WatFSReadArgs;
 using watfs::WatFSReadRet;
 using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
+using watfs::WatFSTruncateArgs;
+using watfs::WatFSTruncateRet;
 using watfs::WatFSReaddirArgs;
 using watfs::WatFSReaddirRet;
 using watfs::WatFSMknodArgs;
@@ -236,32 +238,48 @@ public:
         
         string path;
 
-        path = translate_pathname(args->file_handle());
+        path = translate_pathname(args->file_path());
 
-        int fd = open(path.c_str(), O_WRONLY);
-        
-        if(fd == -1){
+        cout << args->size() << endl;
+
+        ofstream file(path, ios::binary);
+        file.seekp(args->offset());
+        file.write(args->buffer().data(), args->size());
+        if (file.bad()) {
+            perror("write");
+            cout << args->size() << endl;
+            cout << args->buffer().length() << endl;
             ret->set_err(errno);
-            perror("open");
-            return Status::OK;
-        } 
-
-        int err = pwrite(fd, args->data().data(), args->count(), args->offset());
-
-        fsync(fd);
-
-        if (err == -1){
-            ret->set_err(errno);
-            perror("pwrite");
+            ret->set_size(-1);
             return Status::OK;
         }
-        
-        cout << "DEBUG: write - " << err << args << endl;
 
-        ret->set_count(err);
-        ret->set_err(0);
-    
-        close(fd);
+        file.flush();
+        file.close();
+
+        sync();
+
+        ret->set_size(args->size());
+
+        return Status::OK;
+    }
+
+
+    Status WatFSTruncate(ServerContext *context, const WatFSTruncateArgs *args,
+                       WatFSTruncateRet *ret) override {
+
+        string file_path;
+
+        int err;
+
+        file_path = translate_pathname(args->file_path());
+
+        err = truncate(file_path.c_str(), args->size());
+        if (err == -1) {
+            perror("truncate");
+        }
+
+        ret->set_err(err);
 
         return Status::OK;
     }

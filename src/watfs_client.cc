@@ -132,10 +132,24 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
                        grpc::InsecureChannelCredentials()));
 
-    res = client.WatFSWrite(path, offset, size, buf);
+    res = client.WatFSWrite(path, buf, size, offset);
     
     return res;
 }
+
+
+int watfs_truncate(const char* path, off_t size, struct fuse_file_info *fi) {
+
+    int res;
+
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()));
+
+    res = client.WatFSTruncate(path, size);
+    
+    return res;
+}
+
 
 int watfs_unlink(const char* path)
 {
@@ -195,6 +209,7 @@ void set_fuse_ops(struct fuse_operations *ops) {
     ops->mknod      = watfs_mknod;
     ops->read       = watfs_read;
     ops->write      = watfs_write;
+    ops->truncate   = watfs_truncate;
     ops->rename     = watfs_rename;
     ops->unlink     = watfs_unlink;
     ops->mkdir      = watfs_mkdir;

@@ -33,6 +33,8 @@ using watfs::WatFSReadArgs;
 using watfs::WatFSReadRet;
 using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
+using watfs::WatFSTruncateArgs;
+using watfs::WatFSTruncateRet;
 using watfs::WatFSReaddirArgs;
 using watfs::WatFSReaddirRet;
 using watfs::WatFSMknodArgs;
@@ -123,15 +125,20 @@ public:
      *
      * Given a WatFS file handle (string containing server file path), we write
      * requested number of bytes to the file on the server at the specified 
-     * offset from the given buffer. If commit is set to true, sync is called 
-     * and data is commited to disk. An error field is sent back to the 
+     * offset from the given buffer. An error field is sent back to the 
      * client on error, set to relevant errno. 
      * 
      * returns number of bytes read into the buffer on success, or -1 on error.
      * errno is set on error.
      */
-    int WatFSWrite(const string &file_handle, int offset, int count,
-                   const char *data);
+    int WatFSWrite(const string &file_handle, const char *buffer, long size,
+                   long offset);
+
+
+    /*
+     * 
+     */
+    int WatFSTruncate(const string &file_path, int size);
 
 
     /*

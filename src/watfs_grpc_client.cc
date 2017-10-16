@@ -148,21 +148,19 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 }
 
 
-int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count, 
-                            const char *data) {
-    
+int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer, 
+                            long size, long offset) {
     ClientContext context;
     WatFSWriteArgs write_args;
     WatFSWriteRet write_ret;
 
     string marshalled_data;
+    marshalled_data.assign(buffer, size);
 
-    marshalled_data.assign(data, count); 
-    
-    write_args.set_file_handle(file_handle);
+    write_args.set_file_path(file_handle);
+    write_args.set_buffer(buffer);
+    write_args.set_size(marshalled_data.length());
     write_args.set_offset(offset);
-    write_args.set_count(count);
-    write_args.set_data(marshalled_data);
 
     Status status = stub_->WatFSWrite(&context, write_args, &write_ret);
 
@@ -172,11 +170,37 @@ int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
     }
 
     // on error we set errno and return -errno
-    if (write_ret.err() != 0 || write_ret.count() == -1) {
+    if (write_ret.err() == -1) {
         errno = write_ret.err();
         return -errno;
     } else {
-        return write_ret.count();
+        return write_ret.size();
+    }
+}
+
+
+int WatFSClient::WatFSTruncate(const string &file_path, int size) {
+    ClientContext context;
+    WatFSTruncateArgs trunc_args;
+    WatFSTruncateRet trunc_ret;
+
+    trunc_args.set_file_path(file_path);
+    trunc_args.set_size(size);
+
+    Status status = stub_->WatFSTruncate(&context, trunc_args, &trunc_ret);
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (trunc_ret.err() != 0) {
+        errno = trunc_ret.err();
+        return -errno;
+    } else {
+        return 0;
     }
 }
 
