@@ -148,24 +148,56 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 }
 
 
-int WatFSClient::WatFSWrite(const string &file_handle, int offset, int count,
-                            bool flush, const char *data) {
-    
+int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer, 
+                            long total_size, long offset) {
     ClientContext context;
     WatFSWriteArgs write_args;
     WatFSWriteRet write_ret;
 
     string marshalled_data;
-    string marshalled_file_attr;
+    char *data = new char[total_size];
+    memcpy(data, buffer, total_size);
 
     int bytes_sent = 0;
 
     unique_ptr<ClientWriter<WatFSWriteArgs>> writer(
         stub_->WatFSWrite(&context, &write_ret));
 
-    write_args.set_file_handle(file_handle);
+    int msg_sz; // the size of the message sent over the stream
+    while (bytes_sent < total_size) {
+        // we want to send at most MESSAGE_SZ bytes at a time
+        msg_sz = min(MESSAGE_SZ, (int)total_size - bytes_sent);
+        // send this chunk over the stream
+        
+        marshalled_data.assign(data+bytes_sent, msg_sz);            
+        cout << marshalled_data << endl;
+        write_args.set_file_path(file_handle);
+        write_args.set_buffer(marshalled_data);
+        write_args.set_offset(offset+bytes_sent);
+        write_args.set_size(msg_sz);
+        writer->Write(write_args);
 
-    cerr << write_args.file_handle() << endl;
+        bytes_sent += msg_sz;
+    }
+
+    writer->WritesDone();
+    Status status = writer->Finish();
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        return -errno;
+    }
+
+    // on error we set errno and return -errno
+    if (write_ret.err() != 0) {
+        errno = write_ret.err();
+        return -errno;
+    } else {
+        return write_ret.size();
+    }
+
+    return total_size;
+}
 
     write_args.set_commit(flush);
 

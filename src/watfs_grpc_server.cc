@@ -56,8 +56,7 @@ using grpc::Status;
 
 using namespace std;
 
-// This is the recommended message size for streams
-#define MESSAGE_SZ          16384
+#define MESSAGE_SZ          4096
 
 
 class WatFSServer final : public WatFS::Service {
@@ -231,49 +230,37 @@ public:
     /*
      * 
      */
-    Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> 
-                      *reader, WatFSWriteRet *ret) override {
-
+    Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> *reader, 
+                      WatFSWriteRet *ret) override {
+        
         WatFSWriteArgs args;
         string path;
+        int bytes_written = 0;
+        int res;
 
-        string marshalled_attr;
-        string marshalled_data;
+        int fd;
 
-        // bytes read from the stream
-        int bytes_read = 0;
-        int err;
-
-        fstream fh;
-
-        // we have to do our first read outside of the loop
         reader->Read(&args);
-        path = translate_pathname(args.file_handle());
 
-        fh.open(path, ios::out | ios::binary);
-        if (fh.fail()) {
-            ret->set_err(errno);
-            perror("open");
-            fh.close();
-            return Status::OK;
-        }
+        path = translate_pathname(args.file_path());
+        fd = open(path.c_str(), O_WRONLY | O_SYNC);
 
         do {
-            marshalled_data = args.data();
-
-            // write to the proper offset
-            fh.clear();
-            // note: client updates the offset for us on each iteration!
-            fh.seekp(args.offset());
-            fh.write(marshalled_data.data(), args.count());
-
-            if (fh.bad()) {
-                ret->set_commit(false);
-                ret->set_count(-1);
-                ret->set_err(errno);
+            lseek(fd, args.offset(), SEEK_SET);
+            res = write(fd, args.buffer().data(), args.size());
+            if (res == -1) {
                 perror("write");
+                ret->set_err(errno);
+                ret->set_size(-1);
                 return Status::OK;
             }
+            bytes_written += res;
+        } while (reader->Read(&args));
+
+        close(fd);
+
+        ret->set_size(bytes_written);
+        ret->set_err(0);
 
             bytes_read += args.count();
         } while (reader->Read(&args));
