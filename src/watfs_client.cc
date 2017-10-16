@@ -19,6 +19,7 @@ static struct fuse_operations watfs_oper;
 
 static struct options { 
     int show_help;
+    int retry_limit;
 } options;
 
 #define OPTION(t, p)                           \
@@ -38,23 +39,26 @@ static void show_help(const char *progname)
 static int watfs_getattr(const char *path, struct stat *stbuf,
                           struct fuse_file_info *fi)
 {    
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSGetAttr(path, stbuf);
-
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSGetAttr(path, stbuf);
+    }
     return res;
 }
 
 
 int watfs_opendir(const char *path, struct fuse_file_info *f)
 {   
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSLookup(path);
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSLookup(path);
+    }
 
     return res;
 }
@@ -64,11 +68,13 @@ int watfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                   off_t offset, struct fuse_file_info *fi, 
                   enum fuse_readdir_flags flags)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSReaddir(path, buf, filler);
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSReaddir(path, buf, filler);
+    }
     
     return res;
 }
@@ -76,11 +82,14 @@ int watfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 
 int watfs_open(const char *path, struct fuse_file_info *f)
 {    
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSLookup(path);
+    int res=-1;
+    int retries=0;
+    
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSLookup(path);
+    }
 
     return 0;
 }
@@ -88,11 +97,14 @@ int watfs_open(const char *path, struct fuse_file_info *f)
 
 int watfs_rename(const char* from, const char* to, unsigned int flags)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+    int res=-1;
+    int retries=0;
 
-    res = client.WatFSRename(from, to);
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSRename(from, to);
+    }
     
     return res;
 }
@@ -100,11 +112,14 @@ int watfs_rename(const char* from, const char* to, unsigned int flags)
 
 int watfs_mknod(const char *path, mode_t mode, dev_t rdev)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+    int res=-1;
+    int retries=0;
 
-    res = client.WatFSMknod(path, mode, rdev);
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSMknod(path, mode, rdev);
+    }
     
     return res;
 }
@@ -113,12 +128,14 @@ int watfs_mknod(const char *path, mode_t mode, dev_t rdev)
 int watfs_read(const char* path, char *buf, size_t size, off_t offset, 
                struct fuse_file_info* fi) {
 
-    int res;
+    int res=-1;
+    int retries=0;
 
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSRead(path, offset, size, buf);
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSRead(path, offset, size, buf);
+    }
     
     return res;
 }
@@ -127,23 +144,28 @@ int watfs_read(const char* path, char *buf, size_t size, off_t offset,
 int watfs_write(const char* path, const char *buf, size_t size, off_t offset, 
                 struct fuse_file_info* fi) {
 
-    int res;
+    int res=-1;
+    int retries=0;
 
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
 
-    res = client.WatFSWrite(path, offset, size, true, buf);
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSWrite(path, offset, size, true, buf);
+    }
     
     return res;
 }
 
 int watfs_unlink(const char* path)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSUnlink(path);
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSUnlink(path);
+    }
     
     return res;
 }
@@ -151,23 +173,26 @@ int watfs_unlink(const char* path)
 
 int watfs_mkdir(const char* path, mode_t mode)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSMkdir(path, mode);
-
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSMkdir(path, mode);
+    }
     return res;
 }
 
 
 int watfs_rmdir(const char* path)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSRmdir(path);
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSRmdir(path);
+    }
     
     return res;
 }
@@ -176,11 +201,13 @@ int watfs_rmdir(const char* path)
 int watfs_utimens(const char *path, const struct timespec tv[2], 
                   struct fuse_file_info *fi)
 {
-    int res;
-    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
-
-    res = client.WatFSUtimens(path, tv[0], tv[1]);
+    int res=-1;
+    int retries=0;
+    while(res<0 && retries++ <= options.retry_limit){
+        WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                   grpc::InsecureChannelCredentials()));
+        res = client.WatFSUtimens(path, tv[0], tv[1]);
+    }
     
     return res;
 }
@@ -210,7 +237,7 @@ int main(int argc, char* argv[]){
     if (fuse_opt_parse(&args, &options, option_spec, NULL) == -1) {
         return 1;
     }
-
+    options.retry_limit = 2;
     if (options.show_help) {
         show_help(argv[0]);
         assert(fuse_opt_add_arg(&args, "--help") == 0);
