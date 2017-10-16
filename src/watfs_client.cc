@@ -40,7 +40,7 @@ static int watfs_getattr(const char *path, struct stat *stbuf,
 {    
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSGetAttr(path, stbuf);
 
@@ -52,7 +52,7 @@ int watfs_opendir(const char *path, struct fuse_file_info *f)
 {   
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSLookup(path);
 
@@ -66,7 +66,7 @@ int watfs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSReaddir(path, buf, filler);
     
@@ -78,7 +78,7 @@ int watfs_open(const char *path, struct fuse_file_info *f)
 {    
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSLookup(path);
 
@@ -90,7 +90,7 @@ int watfs_rename(const char* from, const char* to, unsigned int flags)
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSRename(from, to);
     
@@ -102,7 +102,7 @@ int watfs_mknod(const char *path, mode_t mode, dev_t rdev)
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSMknod(path, mode, rdev);
     
@@ -116,7 +116,7 @@ int watfs_read(const char* path, char *buf, size_t size, off_t offset,
     int res;
 
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSRead(path, offset, size, buf);
     
@@ -130,7 +130,7 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
     int res;
 
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSWrite(path, buf, size, offset);
     
@@ -143,7 +143,7 @@ int watfs_truncate(const char* path, off_t size, struct fuse_file_info *fi) {
     int res;
 
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSTruncate(path, size);
     
@@ -155,7 +155,7 @@ int watfs_unlink(const char* path)
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSUnlink(path);
     
@@ -167,7 +167,7 @@ int watfs_mkdir(const char* path, mode_t mode)
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSMkdir(path, mode);
 
@@ -179,7 +179,7 @@ int watfs_rmdir(const char* path)
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSRmdir(path);
     
@@ -192,7 +192,7 @@ int watfs_utimens(const char *path, const struct timespec tv[2],
 {
     int res;
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
-                       grpc::InsecureChannelCredentials()));
+                       grpc::InsecureChannelCredentials()), 30);
 
     res = client.WatFSUtimens(path, tv[0], tv[1]);
     

@@ -58,7 +58,7 @@ using grpc::Status;
 
 using namespace std;
 
-#define MESSAGE_SZ          4096
+#define MESSAGE_SZ          8192
 
 
 class WatFSServer final : public WatFS::Service {
@@ -237,29 +237,36 @@ public:
         
         WatFSWriteArgs args;
         string path;
+        char *buffer;
+        int bytes_recv = 0;
         int bytes_written = 0;
-        int res;
 
         int fd;
 
         reader->Read(&args);
 
+        buffer = new char[args.total_size()];
+
+        do {
+            memcpy(buffer+bytes_recv, args.buffer().data(), args.size());
+            bytes_recv += args.size();
+        } while (reader->Read(&args));
+
+
         path = translate_pathname(args.file_path());
         fd = open(path.c_str(), O_WRONLY | O_SYNC);
 
-        do {
-            lseek(fd, args.offset(), SEEK_SET);
-            res = write(fd, args.buffer().data(), args.size());
-            if (res == -1) {
-                perror("write");
-                ret->set_err(errno);
-                ret->set_size(-1);
-                return Status::OK;
-            }
-            bytes_written += res;
-        } while (reader->Read(&args));
+        lseek(fd, args.offset(), SEEK_SET);
+        bytes_written = write(fd, buffer, bytes_recv);
+        if (bytes_written == -1) {
+            perror("write");
+            ret->set_err(errno);
+            ret->set_size(-1);
+            return Status::OK;
+        }
 
         close(fd);
+        delete buffer;
 
         ret->set_size(bytes_written);
         ret->set_err(0);

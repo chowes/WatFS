@@ -3,7 +3,7 @@
 
 WatFSClient::WatFSClient(shared_ptr<Channel> channel) : 
     stub_(WatFS::NewStub(channel)) {
-        cout << "Started" << endl;
+        grpc_deadline = 120;
     }
 
 
@@ -14,14 +14,21 @@ WatFSClient::WatFSClient(shared_ptr<Channel> channel, long deadline) :
 
 
 bool WatFSClient::WatFSNull() {
-    ClientContext context;
     WatFSStatus client_status;
     WatFSStatus server_status;
 
     client_status.set_status(0);
 
-    Status status = stub_->WatFSNull(&context, client_status, 
-                                     &server_status);
+    Status status;
+
+    do {    
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+
+        status = stub_->WatFSNull(&context, client_status, 
+                                  &server_status);
+    } while (!status.ok());
 
     if (!status.ok() || server_status.status() != client_status.status()) {
         cerr << status.error_message() << endl;
@@ -33,7 +40,6 @@ bool WatFSClient::WatFSNull() {
 
 
 int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
-    ClientContext context;
     WatFSGetAttrArgs getattr_args;
     WatFSGetAttrRet getattr_ret;
 
@@ -41,8 +47,15 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
 
     getattr_args.set_file_path(filename);
 
-    Status status = stub_->WatFSGetAttr(&context, getattr_args, 
-                                        &getattr_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSGetAttr(&context, getattr_args, 
+                                     &getattr_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -67,7 +80,6 @@ int WatFSClient::WatFSGetAttr(string filename, struct stat *statbuf) {
 
 int WatFSClient::WatFSLookup(const string &path) {
 
-    ClientContext context;
     WatFSLookupArgs lookup_args;
     WatFSLookupRet lookup_ret;
 
@@ -75,7 +87,14 @@ int WatFSClient::WatFSLookup(const string &path) {
 
     lookup_args.set_file_path(path);
 
-    Status status = stub_->WatFSLookup(&context, lookup_args, &lookup_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSLookup(&context, lookup_args, &lookup_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -96,45 +115,59 @@ int WatFSClient::WatFSLookup(const string &path) {
 int WatFSClient::WatFSRead(const string &file_handle, int offset, int count, 
                            char *data) {
 
-    ClientContext context;
     WatFSReadArgs read_args;
     WatFSReadRet read_ret;
-    
+
     string marshalled_file_attr;
     string marshalled_data;
+    string buffer;
 
-    int bytes_read = 0;
+    int bytes_read;
+
 
     read_args.set_file_handle(file_handle);
     read_args.set_offset(offset);
     read_args.set_count(count);
 
 
-    unique_ptr<ClientReader<WatFSReadRet>> reader(
-        stub_->WatFSRead(&context, read_args));
-    
+    Status status;
 
-    // read requested data from stream
-    while (reader->Read(&read_ret) && bytes_read < count) {
+    /*
+     * This is a bunch of nonsense made necessary by a gRPC bug (issue 4475, fixed upstream)
+     */
+    do {
+        bytes_read = 0;
+        buffer.clear();
+
+        ClientContext context;
+
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+
+        auto reader = stub_->WatFSRead(&context, read_args);
         
-        // fail as soon as we find a problem
-        if (read_ret.count() == -1) {
-            errno = read_ret.err();
-            return -errno;
+        // read requested data from stream
+        while (reader->Read(&read_ret) && bytes_read < count) {
+            
+            // fail as soon as we find a problem
+            if (read_ret.count() == -1) {
+                errno = read_ret.err();
+                break;
+            }
+            marshalled_data = read_ret.data();
+            buffer.append(marshalled_data);
+
+            // assume alloc'd correctly in caller
+            bytes_read += read_ret.count();
         }
-        marshalled_data = read_ret.data();
-     
-        // assume alloc'd correctly in caller
-        memcpy(data+bytes_read, marshalled_data.data(), read_ret.count());
 
-        bytes_read += read_ret.count();
-    }
+        status = reader->Finish();
+    } while (!status.ok());
 
-    Status status = reader->Finish();
+    memcpy(data, buffer.data(), bytes_read);
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
-        cerr << status.error_message() << endl;
         return -errno;
     }
 
@@ -150,7 +183,6 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 
 int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer, 
                             long total_size, long offset) {
-    ClientContext context;
     WatFSWriteArgs write_args;
     WatFSWriteRet write_ret;
 
@@ -158,30 +190,37 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
     char *data = new char[total_size];
     memcpy(data, buffer, total_size);
 
-    int bytes_sent = 0;
+    Status status;
 
-    unique_ptr<ClientWriter<WatFSWriteArgs>> writer(
-        stub_->WatFSWrite(&context, &write_ret));
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
 
-    int msg_sz; // the size of the message sent over the stream
-    while (bytes_sent < total_size) {
-        // we want to send at most MESSAGE_SZ bytes at a time
-        msg_sz = min(MESSAGE_SZ, (int)total_size - bytes_sent);
-        // send this chunk over the stream
-        
-        marshalled_data.assign(data+bytes_sent, msg_sz);            
-        cout << marshalled_data << endl;
-        write_args.set_file_path(file_handle);
-        write_args.set_buffer(marshalled_data);
-        write_args.set_offset(offset+bytes_sent);
-        write_args.set_size(msg_sz);
-        writer->Write(write_args);
+        auto writer = stub_->WatFSWrite(&context, &write_ret);
 
-        bytes_sent += msg_sz;
-    }
+        int bytes_sent = 0;
+        int msg_sz; // the size of the message sent over the stream
+        while (bytes_sent < total_size) {
+            // we want to send at most MESSAGE_SZ bytes at a time
+            msg_sz = min(MESSAGE_SZ, (int)total_size - bytes_sent);
+            // send this chunk over the stream
+            
+            marshalled_data.assign(data+bytes_sent, msg_sz);            
+            cout << marshalled_data << endl;
+            write_args.set_file_path(file_handle);
+            write_args.set_buffer(marshalled_data);
+            write_args.set_offset(offset);
+            write_args.set_total_size(total_size);
+            write_args.set_size(msg_sz);
+            writer->Write(write_args);
 
-    writer->WritesDone();
-    Status status = writer->Finish();
+            bytes_sent += msg_sz;
+        }
+
+        writer->WritesDone();
+        Status status = writer->Finish();
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -201,14 +240,20 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
 
 
 int WatFSClient::WatFSTruncate(const string &file_path, int size) {
-    ClientContext context;
     WatFSTruncateArgs trunc_args;
     WatFSTruncateRet trunc_ret;
 
     trunc_args.set_file_path(file_path);
     trunc_args.set_size(size);
 
-    Status status = stub_->WatFSTruncate(&context, trunc_args, &trunc_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSTruncate(&context, trunc_args, &trunc_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -229,7 +274,6 @@ int WatFSClient::WatFSTruncate(const string &file_path, int size) {
 int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer, 
                               fuse_fill_dir_t filler) {
 
-    ClientContext context;
     WatFSReaddirArgs readdir_args;
     WatFSReaddirRet readdir_ret;
     
@@ -239,31 +283,36 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
     struct dirent dir_entry;
     struct stat attr;
 
+    Status status;
+
     readdir_args.set_file_handle(file_handle);
 
-    unique_ptr<ClientReader<WatFSReaddirRet>> reader(
-        stub_->WatFSReaddir(&context, readdir_args));
-    
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
 
-    // read requested data from stream
-    while (reader->Read(&readdir_ret)) {
+        auto reader = stub_->WatFSReaddir(&context, readdir_args);
 
-        marshalled_attr = readdir_ret.attr();
-        marshalled_dir_entry = readdir_ret.dir_entry();
-        
+        // read requested directory data from stream
+        while (reader->Read(&readdir_ret)) {
 
-        memset(&attr, 0, sizeof(struct stat));
-        memcpy(&attr, marshalled_attr.data(), sizeof(struct stat));
+            marshalled_attr = readdir_ret.attr();
+            marshalled_dir_entry = readdir_ret.dir_entry();
 
-        memset(&dir_entry, 0, sizeof(struct dirent));
-        memcpy(&dir_entry, marshalled_dir_entry.data(), sizeof(struct stat));
-        
-        /* we add the entry from here so we don't have to deal with sending back
-         * a list */
-        filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
-    }
+            memset(&attr, 0, sizeof(struct stat));
+            memcpy(&attr, marshalled_attr.data(), sizeof(struct stat));
 
-    Status status = reader->Finish();
+            memset(&dir_entry, 0, sizeof(struct dirent));
+            memcpy(&dir_entry, marshalled_dir_entry.data(), sizeof(struct stat));
+            
+            /* we add the entry from here so we don't have to deal with sending back
+             * a list */
+            filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
+        }
+
+        status = reader->Finish();
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -283,7 +332,6 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
 
 
 int WatFSClient::WatFSMknod(const string &path, mode_t mode, dev_t rdev) {
-    ClientContext context;
     WatFSMknodArgs mknod_args;
     WatFSMknodRet mknod_ret;
 
@@ -291,7 +339,14 @@ int WatFSClient::WatFSMknod(const string &path, mode_t mode, dev_t rdev) {
     mknod_args.set_mode(mode);
     mknod_args.set_rdev(rdev);
 
-    Status status = stub_->WatFSMknod(&context, mknod_args, &mknod_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSMknod(&context, mknod_args, &mknod_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -310,13 +365,19 @@ int WatFSClient::WatFSMknod(const string &path, mode_t mode, dev_t rdev) {
 
 
 int WatFSClient::WatFSUnlink(const string &path) {
-    ClientContext context;
     WatFSUnlinkArgs unlink_args;
     WatFSUnlinkRet unlink_ret;
 
     unlink_args.set_path(path);
 
-    Status status = stub_->WatFSUnlink(&context, unlink_args, &unlink_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSUnlink(&context, unlink_args, &unlink_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -335,14 +396,20 @@ int WatFSClient::WatFSUnlink(const string &path) {
 
 
 int WatFSClient::WatFSRename(const string &from, const string &to) {
-    ClientContext context;
     WatFSRenameArgs rename_args;
     WatFSRenameRet rename_ret;
 
     rename_args.set_source(from);
     rename_args.set_dest(to);
 
-    Status status = stub_->WatFSRename(&context, rename_args, &rename_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSRename(&context, rename_args, &rename_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -360,14 +427,20 @@ int WatFSClient::WatFSRename(const string &from, const string &to) {
 
 
 int WatFSClient::WatFSMkdir(const string &path, mode_t mode) {
-    ClientContext context;
     WatFSMkdirArgs mkdir_args;
     WatFSMkdirRet mkdir_ret;
 
     mkdir_args.set_path(path);
     mkdir_args.set_mode(mode);
 
-    Status status = stub_->WatFSMkdir(&context, mkdir_args, &mkdir_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSMkdir(&context, mkdir_args, &mkdir_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -386,13 +459,19 @@ int WatFSClient::WatFSMkdir(const string &path, mode_t mode) {
 
 
 int WatFSClient::WatFSRmdir(const string &path) {
-    ClientContext context;
     WatFSRmdirArgs rmdir_args;
     WatFSRmdirRet rmdir_ret;
 
     rmdir_args.set_path(path);
 
-    Status status = stub_->WatFSRmdir(&context, rmdir_args, &rmdir_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSRmdir(&context, rmdir_args, &rmdir_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -411,7 +490,6 @@ int WatFSClient::WatFSRmdir(const string &path) {
 
 int WatFSClient::WatFSUtimens(const string &path, struct timespec tv_access, 
                               struct timespec tv_modify) {
-    ClientContext context;
     WatFSUtimensArgs utimens_args;
     WatFSUtimensRet utimens_ret;
 
@@ -421,7 +499,14 @@ int WatFSClient::WatFSUtimens(const string &path, struct timespec tv_access,
     utimens_args.set_ts_modify_sec(tv_modify.tv_sec);
     utimens_args.set_ts_modify_nsec(tv_modify.tv_nsec);
 
-    Status status = stub_->WatFSUtimens(&context, utimens_args, &utimens_ret);
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSUtimens(&context, utimens_args, &utimens_ret);
+    } while (!status.ok());
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
