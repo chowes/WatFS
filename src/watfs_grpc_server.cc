@@ -292,8 +292,6 @@ public:
         
         sync();
 
-        cerr << "DEBUG: Commit called!" << endl;
-
         ret->set_verf(verf);
 
         return Status::OK;

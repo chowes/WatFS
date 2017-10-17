@@ -208,7 +208,6 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
             // send this chunk over the stream
             
             marshalled_data.assign(data+bytes_sent, msg_sz);            
-            cout << marshalled_data << endl;
             write_args.set_file_path(file_handle);
             write_args.set_buffer(marshalled_data);
             write_args.set_offset(offset);
@@ -240,7 +239,7 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
 }
 
 
-int WatFSClient::WatFSCommit(long int verf) {
+int WatFSClient::WatFSCommit() {
     
     WatFSCommitArgs commit_args;
     WatFSCommitRet commit_ret;
@@ -551,4 +550,3 @@ int WatFSClient::WatFSUtimens(const string &path, struct timespec tv_access,
         return 0;
     }
 }
-

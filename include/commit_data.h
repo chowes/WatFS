@@ -3,6 +3,9 @@
 
 using namespace std;
 
+#ifndef __WATFS_COMMIT_DATA__
+#define __WATFS_COMMIT_DATA__
+
 class CommitData {
 public:
     string path;
@@ -19,3 +22,5 @@ public:
         data.assign(new_data.data());
     }
 };
+
+#endif // __WATFS_COMMIT_DATA__

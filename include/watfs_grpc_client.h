@@ -16,6 +16,7 @@
 #include <grpc++/create_channel.h>
 #include <grpc++/security/credentials.h>
 
+#include "commit_data.h"
 #include "watfs.grpc.pb.h"
 
 using watfs::WatFS;
@@ -70,7 +71,13 @@ using namespace std;
 
 class WatFSClient {
 public:
+
+    // use to verify commits
+    long verf;
+    // data that has been written but not commited to disk
+    vector<CommitData> cached_writes;
     
+
     /*
      * Constructor using default deadline
      */
@@ -140,6 +147,8 @@ public:
                    long offset);
 
 
+    int WatFSCommit();
+
     /*
      * 
      */
@@ -188,12 +197,6 @@ public:
      */
     int WatFSUtimens(const string &path, struct timespec tv_access, 
                      struct timespec tv_modify);
-
-
-    /*
-     * 
-     */
-    int WatFSCommit(long int verf);
 
 
 private:
