@@ -20,6 +20,7 @@
 #include <grpc++/server_context.h>
 #include <grpc++/security/server_credentials.h>
 
+#include "commit_data.h"
 #include "watfs.grpc.pb.h"
 
 using watfs::WatFS;
@@ -32,6 +33,8 @@ using watfs::WatFSReadArgs;
 using watfs::WatFSReadRet;
 using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
+using watfs::WatFSCommitArgs;
+using watfs::WatFSCommitRet;
 using watfs::WatFSTruncateArgs;
 using watfs::WatFSTruncateRet;
 using watfs::WatFSReaddirArgs;
@@ -70,13 +73,15 @@ public:
             root_directory.erase(root_directory.end()-1);  
         }
         cout << "WatFS server root directory set to: " + root_directory << endl;
+    
+        verf = time(NULL);
     }
 
     Status WatFSNull(ServerContext *context, const WatFSStatus *client_status,
                      WatFSStatus *server_status) override {
         
-        // just echo the status back to the client, like a heartbeat
-        server_status->set_status(client_status->status());
+        // send our verf to the client
+        server_status->set_verf(verf);
 
         cerr << "DEBUG: received ping from client" << endl;
 
@@ -232,11 +237,13 @@ public:
     /*
      * 
      */
-    Status WatFSWrite(ServerContext *context, ServerReader<WatFSWriteArgs> *reader, 
+    Status WatFSWrite(ServerContext *context, 
+                      ServerReader<WatFSWriteArgs> *reader, 
                       WatFSWriteRet *ret) override {
         
         WatFSWriteArgs args;
         string path;
+        string marshalled_data;
         char *buffer;
         int bytes_recv = 0;
         int bytes_written = 0;
@@ -252,9 +259,11 @@ public:
             bytes_recv += args.size();
         } while (reader->Read(&args));
 
-
+        marshalled_data.assign(buffer);
         path = translate_pathname(args.file_path());
-        fd = open(path.c_str(), O_WRONLY | O_SYNC);
+
+        // write to file right away, but don't call sync
+        fd = open(path.c_str(), O_WRONLY);
 
         lseek(fd, args.offset(), SEEK_SET);
         bytes_written = write(fd, buffer, bytes_recv);
@@ -275,8 +284,27 @@ public:
     }
 
 
+    /*
+     * 
+     */
+    Status WatFSCommit(ServerContext *context, const WatFSCommitArgs *args, 
+                       WatFSCommitRet *ret) override {
+        
+        sync();
+
+        cerr << "DEBUG: Commit called!" << endl;
+
+        ret->set_verf(verf);
+
+        return Status::OK;
+    }
+
+
+    /*
+     * 
+     */
     Status WatFSTruncate(ServerContext *context, const WatFSTruncateArgs *args,
-                       WatFSTruncateRet *ret) override {
+                         WatFSTruncateRet *ret) override {
 
         string file_path;
 
@@ -299,7 +327,7 @@ public:
      * 
      */
     Status WatFSReaddir(ServerContext *context, const WatFSReaddirArgs *args,
-                       ServerWriter<WatFSReaddirRet> *writer) override {
+                        ServerWriter<WatFSReaddirRet> *writer) override {
 
         DIR *dh;
         struct stat attr;
@@ -508,8 +536,12 @@ public:
 
 
 private:
+    time_t verf;
     string root_directory;
 
+    /*
+     * 
+     */
     string translate_pathname(const string &pathname) {
         return root_directory + pathname;
     }

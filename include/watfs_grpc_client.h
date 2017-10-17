@@ -33,6 +33,8 @@ using watfs::WatFSReadArgs;
 using watfs::WatFSReadRet;
 using watfs::WatFSWriteArgs;
 using watfs::WatFSWriteRet;
+using watfs::WatFSCommitArgs;
+using watfs::WatFSCommitRet;
 using watfs::WatFSTruncateArgs;
 using watfs::WatFSTruncateRet;
 using watfs::WatFSReaddirArgs;
@@ -84,10 +86,10 @@ public:
     /* 
      * call WatFSNull to ping the server
      *
-     * return: response from server on success
+     * return: verf from server on success
      *         -1 on failure
      */
-    bool WatFSNull();
+    long int WatFSNull();
 
 
     /*
@@ -191,7 +193,7 @@ public:
     /*
      * 
      */
-    int WatFSCommit();
+    int WatFSCommit(long int verf);
 
 
 private:

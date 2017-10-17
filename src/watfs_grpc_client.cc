@@ -13,11 +13,11 @@ WatFSClient::WatFSClient(shared_ptr<Channel> channel, long deadline) :
     }
 
 
-bool WatFSClient::WatFSNull() {
+long int WatFSClient::WatFSNull() {
     WatFSStatus client_status;
     WatFSStatus server_status;
 
-    client_status.set_status(0);
+    client_status.set_verf(0);
 
     Status status;
 
@@ -30,12 +30,11 @@ bool WatFSClient::WatFSNull() {
                                   &server_status);
     } while (!status.ok());
 
-    if (!status.ok() || server_status.status() != client_status.status()) {
-        cerr << status.error_message() << endl;
-        return false;
+    if (!status.ok()) {
+        return -1;
     }
 
-    return true;
+    return server_status.verf();
 }
 
 
@@ -133,7 +132,8 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
     Status status;
 
     /*
-     * This is a bunch of nonsense made necessary by a gRPC bug (issue 4475, fixed upstream)
+     * This is a bunch of nonsense made necessary by a gRPC bug (issue 4475, 
+     * fixed upstream)
      */
     do {
         bytes_read = 0;
@@ -183,6 +183,7 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
 
 int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer, 
                             long total_size, long offset) {
+    
     WatFSWriteArgs write_args;
     WatFSWriteRet write_ret;
 
@@ -236,6 +237,32 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
     }
 
     return total_size;
+}
+
+
+int WatFSClient::WatFSCommit(long int verf) {
+    
+    WatFSCommitArgs commit_args;
+    WatFSCommitRet commit_ret;
+
+    commit_args.set_verf(verf);
+
+    Status status;
+
+    do {
+        ClientContext context;
+        context.set_wait_for_ready(true);
+        context.set_deadline(GetDeadline());
+        status = stub_->WatFSCommit(&context, commit_args, &commit_ret);
+    } while (!status.ok());
+
+    if (!status.ok()) {
+        errno = ETIMEDOUT;
+        cerr << status.error_message() << endl;
+        return -errno;
+    }
+
+    return commit_ret.verf();
 }
 
 
@@ -304,10 +331,12 @@ int WatFSClient::WatFSReaddir(const string &file_handle, void *buffer,
             memcpy(&attr, marshalled_attr.data(), sizeof(struct stat));
 
             memset(&dir_entry, 0, sizeof(struct dirent));
-            memcpy(&dir_entry, marshalled_dir_entry.data(), sizeof(struct stat));
+            memcpy(&dir_entry, marshalled_dir_entry.data(), 
+                   sizeof(struct stat));
             
-            /* we add the entry from here so we don't have to deal with sending back
-             * a list */
+            /* we add the entry from here so we don't have to deal with sending
+             * back a list
+             */
             filler(buffer, dir_entry.d_name, &attr, 0, FUSE_FILL_DIR_PLUS);
         }
 

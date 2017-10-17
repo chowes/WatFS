@@ -11,14 +11,21 @@
 #include <errno.h>
 #include <unistd.h>
 
+#include "commit_data.h"
 #include "watfs_grpc_client.h"
 
+
+typedef struct context_t {
+    long int verf;
+    vector<CommitData> cached_writes;
+} context_t;
 
 static struct fuse_operations watfs_oper;
 
 
 static struct options { 
     int show_help;
+    long int verf;
 } options;
 
 #define OPTION(t, p)                           \
@@ -35,7 +42,26 @@ static void show_help(const char *progname)
 }
 
 
-static int watfs_getattr(const char *path, struct stat *stbuf,
+void *watfs_init(struct conn_info *conn)
+{
+    (void) conn;
+    long int init_verf;
+
+    context_t *context;
+
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()), 30);
+
+    context = (context_t*)malloc(sizeof(context_t));
+    context->verf = client.WatFSCommit(0);
+
+    cerr << context->verf << endl;
+
+    return context;
+} 
+
+
+int watfs_getattr(const char *path, struct stat *stbuf,
                           struct fuse_file_info *fi)
 {    
     int res;
@@ -128,6 +154,16 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
                 struct fuse_file_info* fi) {
 
     int res;
+    string marshalled_path;
+    string marshalled_data;
+
+    marshalled_path.assign(path);
+    marshalled_data.assign(buf);
+    
+    context_t *context = (context_t *)fuse_get_context()->private_data;
+
+    CommitData commit_data(path, offset, size, marshalled_data);
+    context->cached_writes.push_back(commit_data);
 
     WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
                        grpc::InsecureChannelCredentials()), 30);
@@ -135,6 +171,45 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
     res = client.WatFSWrite(path, buf, size, offset);
     
     return res;
+}
+
+
+int watfs_commit(const char* path, struct fuse_file_info *fi) {
+
+    int res;
+
+    WatFSClient client(grpc::CreateChannel("0.0.0.0:50051", 
+                       grpc::InsecureChannelCredentials()), 30);
+
+    context_t *context = (context_t *)fuse_get_context()->private_data;
+
+    int verf = client.WatFSCommit(context->verf);
+
+    if (verf != context->verf || true) {
+        cerr << "Server crashed! Resend cached writes" << endl;
+        cerr << "our verf: " << context->verf << endl;
+        cerr << "server verf: " << verf << endl;
+        context->verf = verf;
+    } else {
+        context->cached_writes.clear();
+        return 0;
+    }
+
+    for (auto write : context->cached_writes) {
+        cerr << write.path << endl;
+        res = client.WatFSWrite(write.path.data(), write.data.data(), 
+                                write.size, write.offset);
+    }
+    context->cached_writes.clear();
+    
+    // we aren't allowed to return errors here!
+    return 0;
+}
+
+
+int watfs_flush(const char* path, struct fuse_file_info *fi) {
+    
+    return watfs_commit(path, fi);
 }
 
 
@@ -209,6 +284,8 @@ void set_fuse_ops(struct fuse_operations *ops) {
     ops->mknod      = watfs_mknod;
     ops->read       = watfs_read;
     ops->write      = watfs_write;
+    ops->release    = watfs_commit;
+    ops->flush      = watfs_flush;
     ops->truncate   = watfs_truncate;
     ops->rename     = watfs_rename;
     ops->unlink     = watfs_unlink;

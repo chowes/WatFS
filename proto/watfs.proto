@@ -17,6 +17,8 @@ service WatFS {
 
     rpc WatFSWrite (stream WatFSWriteArgs) returns (WatFSWriteRet) {}
 
+    rpc WatFSCommit (WatFSCommitArgs) returns (WatFSCommitRet) {}
+
     rpc WatFSTruncate (WatFSTruncateArgs) returns (WatFSTruncateRet) {}
 
     rpc WatFSReaddir (WatFSReaddirArgs) returns (stream WatFSReaddirRet) {}
@@ -33,7 +35,6 @@ service WatFS {
 
     rpc WatFSUtimens (WatFSUtimensArgs) returns (WatFSUtimensRet) {}
 
-    rpc WatFSCommit (WatFSCommitArgs) returns (WatFSCommitRet) {}
 }
 
 
@@ -44,7 +45,7 @@ service WatFS {
  * any practical use. I only bothered to implement it as a starting point.
  */
 message WatFSStatus {
-    int32 status = 1;
+    int64 verf = 1;
 }
 
 /* GETATTR */ 
@@ -211,14 +212,13 @@ message WatFSUtimensRet {
     int32 err = 1;
 }
 
-
 /* COMMIT */
 
 // these will probably change
 message WatFSCommitArgs {
-    bool commit = 1;
+    int64 verf = 1;
 }
 
 message WatFSCommitRet {
-    bool success = 1; 
+    int64 verf = 1;
 }
