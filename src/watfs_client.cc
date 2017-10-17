@@ -130,6 +130,12 @@ int watfs_read(const char* path, char *buf, size_t size, off_t offset,
     WatFSClient *client = (WatFSClient *)fuse_get_context()->private_data;
 
     res = client->WatFSRead(path, offset, size, buf);
+
+    if (res < 0) {
+        cerr << res << endl << endl << endl;
+        perror("read");
+        exit(1);
+    }
     
     return res;
 }
@@ -151,6 +157,12 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
     client->cached_writes.push_back(commit_data);
 
     res = client->WatFSWrite(path, buf, size, offset);
+
+    if (res < 0) {
+        cerr << res << endl << endl << endl;
+        perror("write");
+        exit(1);
+    }
     
     return res;
 }
@@ -160,26 +172,36 @@ int watfs_commit(const char* path, struct fuse_file_info *fi) {
 
     int res;
 
+
     WatFSClient *client = (WatFSClient *)fuse_get_context()->private_data;
+    
+    cerr << "commit!" << endl;
 
     int verf = client->WatFSCommit();
 
-    if (verf != client->verf) {
+    cerr << "commit!" << endl;
+
+    while (client->verf != verf) {
         cerr << "Server crashed! Resend cached writes" << endl;
         cerr << "our verf: " << client->verf << endl;
         cerr << "server verf: " << verf << endl;
         client->verf = verf;
-    }
-
-    while (client->verf != verf) {
+        
         for (auto write : client->cached_writes) {
-            client->WatFSWrite(write.path.data(), write.data.data(), 
+            cerr << write.path << endl;
+            res = client->WatFSWrite(write.path.data(), write.data.data(), 
                                write.size, write.offset);
         }
-        verf = client->WatFSCommit();
+        // verf = client->WatFSCommit();
     }
     
     client->cached_writes.clear();
+
+    if (res < 0) {
+        cerr << res << endl << endl << endl;
+        perror("commit");
+        exit(1);
+    }
 
     // we aren't allowed to return errors here!
     return 0;

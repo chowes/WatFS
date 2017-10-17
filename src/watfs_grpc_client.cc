@@ -158,7 +158,7 @@ int WatFSClient::WatFSRead(const string &file_handle, int offset, int count,
             buffer.append(marshalled_data);
 
             // assume alloc'd correctly in caller
-            bytes_read += read_ret.count();
+            bytes_read += marshalled_data.size();
         }
 
         status = reader->Finish();
@@ -213,7 +213,9 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
             write_args.set_offset(offset);
             write_args.set_total_size(total_size);
             write_args.set_size(msg_sz);
-            writer->Write(write_args);
+            if (!writer->Write(write_args)) {
+                break;
+            }
 
             bytes_sent += msg_sz;
         }
@@ -221,6 +223,8 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
         writer->WritesDone();
         Status status = writer->Finish();
     } while (!status.ok());
+
+    delete data;
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
@@ -234,8 +238,6 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
     } else {
         return write_ret.size();
     }
-
-    return total_size;
 }
 
 
