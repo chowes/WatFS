@@ -252,7 +252,7 @@ public:
 
         reader->Read(&args);
 
-        buffer = new char[args.total_size()];
+        buffer = (char *)malloc(args.total_size());
 
         do {
             memcpy(buffer+bytes_recv, args.buffer().data(), args.size());
@@ -275,7 +275,7 @@ public:
         }
 
         close(fd);
-        delete buffer;
+        free(buffer);
 
         ret->set_size(bytes_written);
         ret->set_err(0);

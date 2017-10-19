@@ -31,7 +31,7 @@ static const struct fuse_opt option_spec[] = {
 
 static void show_help(const char *progname)
 {
-    std::cout << "usage: " << progname << " [-s -d] <mountpoint>\n\n";
+    std::cout << "usage: " << progname << " <mountpoint>\n\n";
 }
 
 
@@ -46,6 +46,17 @@ void *watfs_init(struct fuse_conn_info *conn, struct fuse_config *cfg)
 
     return client;
 } 
+
+void watfs_destroy(void* private_data)
+{
+    WatFSClient *client = (WatFSClient *) private_data;
+
+    for (auto write : client->cached_writes) {
+        delete write;
+    }
+
+    delete client;
+}
 
 
 int watfs_getattr(const char *path, struct stat *stbuf,
@@ -145,17 +156,19 @@ int watfs_write(const char* path, const char *buf, size_t size, off_t offset,
                 struct fuse_file_info* fi) {
 
     int res;
-    string marshalled_path;
-    string marshalled_data;
 
-    marshalled_path.assign(path);
-    marshalled_data.assign(buf);
+    CommitData *write = new CommitData(path, offset, size, buf);
     
     WatFSClient *client = (WatFSClient *)fuse_get_context()->private_data;
 
-    CommitData commit_data(path, offset, size, marshalled_data);
-    client->cached_writes.push_back(commit_data);
+    
+    pthread_mutex_lock(&(client->cached_writes_mutex));
+    
+    client->cached_writes.push_back(write);
 
+    pthread_mutex_unlock(&(client->cached_writes_mutex));
+
+    
     res = client->WatFSWrite(path, buf, size, offset);
 
     if (res < 0) {
@@ -172,14 +185,11 @@ int watfs_commit(const char* path, struct fuse_file_info *fi) {
 
     int res;
 
-
     WatFSClient *client = (WatFSClient *)fuse_get_context()->private_data;
-    
-    cerr << "commit!" << endl;
+
+    pthread_mutex_lock(&(client->cached_writes_mutex));
 
     int verf = client->WatFSCommit();
-
-    cerr << "commit!" << endl;
 
     while (client->verf != verf) {
         cerr << "Server crashed! Resend cached writes" << endl;
@@ -188,20 +198,20 @@ int watfs_commit(const char* path, struct fuse_file_info *fi) {
         client->verf = verf;
         
         for (auto write : client->cached_writes) {
-            cerr << write.path << endl;
-            res = client->WatFSWrite(write.path.data(), write.data.data(), 
-                               write.size, write.offset);
+            cerr << write->path << endl;
+            res = client->WatFSWrite(write->path.data(), write->data.data(), 
+                                     write->size, write->offset);
         }
-        // verf = client->WatFSCommit();
+        verf = client->WatFSCommit();
     }
-    
+
+    for (auto write : client->cached_writes) {
+        delete write;
+    }
+
     client->cached_writes.clear();
 
-    if (res < 0) {
-        cerr << res << endl << endl << endl;
-        perror("commit");
-        exit(1);
-    }
+    pthread_mutex_unlock(&(client->cached_writes_mutex));
 
     // we aren't allowed to return errors here!
     return 0;
@@ -277,6 +287,7 @@ int watfs_utimens(const char *path, const struct timespec tv[2],
 
 void set_fuse_ops(struct fuse_operations *ops) {
     ops->init       = watfs_init;
+    ops->destroy    = watfs_destroy;
     ops->getattr    = watfs_getattr;
     ops->opendir    = watfs_opendir;
     ops->readdir    = watfs_readdir;

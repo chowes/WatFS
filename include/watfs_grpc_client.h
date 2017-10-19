@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <fuse.h>
+#include <pthread.h>
 
 #include <iostream>
 #include <memory>
@@ -75,8 +76,9 @@ public:
     // use to verify commits
     long verf;
     // data that has been written but not commited to disk
-    vector<CommitData> cached_writes;
+    vector<CommitData *> cached_writes;
     
+    pthread_mutex_t cached_writes_mutex;
 
     /*
      * Constructor using default deadline

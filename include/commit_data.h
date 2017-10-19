@@ -13,13 +13,13 @@ public:
     long size;
     string data;
 
-    CommitData(string new_path, long new_offset, long new_size, 
-               string new_data) {
+    CommitData(const char *new_path, long new_offset, long new_size, 
+               const char *new_data) {
 
-        path = new_path;
+        path.assign(new_path);
         offset = new_offset;
         size = new_size;
-        data.assign(new_data.data());
+        data.assign(new_data, size);
     }
 };
 

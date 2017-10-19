@@ -4,12 +4,16 @@
 WatFSClient::WatFSClient(shared_ptr<Channel> channel) : 
     stub_(WatFS::NewStub(channel)) {
         grpc_deadline = 120;
+
+        cached_writes_mutex = PTHREAD_MUTEX_INITIALIZER;
     }
 
 
 WatFSClient::WatFSClient(shared_ptr<Channel> channel, long deadline) : 
     stub_(WatFS::NewStub(channel)) {
         grpc_deadline = deadline;
+
+        cached_writes_mutex = PTHREAD_MUTEX_INITIALIZER;
     }
 
 
@@ -188,8 +192,6 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
     WatFSWriteRet write_ret;
 
     string marshalled_data;
-    char *data = new char[total_size];
-    memcpy(data, buffer, total_size);
 
     Status status;
 
@@ -207,7 +209,7 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
             msg_sz = min(MESSAGE_SZ, (int)total_size - bytes_sent);
             // send this chunk over the stream
             
-            marshalled_data.assign(data+bytes_sent, msg_sz);            
+            marshalled_data.assign(buffer+bytes_sent, msg_sz);            
             write_args.set_file_path(file_handle);
             write_args.set_buffer(marshalled_data);
             write_args.set_offset(offset);
@@ -223,8 +225,6 @@ int WatFSClient::WatFSWrite(const string &file_handle, const char *buffer,
         writer->WritesDone();
         Status status = writer->Finish();
     } while (!status.ok());
-
-    delete data;
 
     if (!status.ok()) {
         errno = ETIMEDOUT;
